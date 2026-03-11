@@ -1,0 +1,118 @@
+{
+  "sure": {
+    "baseUrl": "http://sure:3000",
+    "apiKeyFile": "sure_api_key"
+  },
+  "banks": {
+    "hapoalim": {
+      "credentialKeys": {
+        "userCode": "hapoalim_user_code",
+        "password": "hapoalim_password"
+      },
+      "targets": [
+        {
+          "sureAccountId": "00000000-0000-0000-0000-000000000001",
+          "sureAccountName": "Bank Hapoalim — Main",
+          "accounts": "all",
+          "includePending": false
+        }
+      ]
+    },
+    "leumi": {
+      "credentialKeys": {
+        "username": "leumi_username",
+        "password": "leumi_password"
+      },
+      "targets": [
+        {
+          "sureAccountId": "00000000-0000-0000-0000-000000000002",
+          "sureAccountName": "Bank Leumi — Checking",
+          "accounts": ["123456789"],
+          "includePending": false
+        }
+      ]
+    },
+    "mizrahi": {
+      "credentialKeys": {
+        "username": "mizrahi_username",
+        "password": "mizrahi_password"
+      },
+      "targets": [
+        {
+          "sureAccountId": "00000000-0000-0000-0000-000000000003",
+          "sureAccountName": "Mizrahi — Main",
+          "accounts": "all"
+        }
+      ]
+    },
+    "discount": {
+      "credentialKeys": {
+        "id": "discount_id",
+        "password": "discount_password",
+        "num": "discount_num"
+      },
+      "targets": [
+        {
+          "sureAccountId": "00000000-0000-0000-0000-000000000004",
+          "sureAccountName": "Discount Bank",
+          "accounts": "all"
+        }
+      ]
+    },
+    "max": {
+      "credentialKeys": {
+        "username": "max_username",
+        "password": "max_password"
+      },
+      "targets": [
+        {
+          "sureAccountId": "00000000-0000-0000-0000-000000000005",
+          "sureAccountName": "Max Credit Card",
+          "accounts": "all",
+          "includePending": true
+        }
+      ]
+    },
+    "visaCal": {
+      "credentialKeys": {
+        "username": "visacal_username",
+        "password": "visacal_password"
+      },
+      "targets": [
+        {
+          "sureAccountId": "00000000-0000-0000-0000-000000000006",
+          "sureAccountName": "Visa Cal",
+          "accounts": "all"
+        }
+      ]
+    },
+    "isracard": {
+      "credentialKeys": {
+        "id": "isracard_id",
+        "card6Digits": "isracard_card6digits",
+        "password": "isracard_password"
+      },
+      "targets": [
+        {
+          "sureAccountId": "00000000-0000-0000-0000-000000000007",
+          "sureAccountName": "Isracard",
+          "accounts": "all"
+        }
+      ]
+    },
+    "amex": {
+      "credentialKeys": {
+        "id": "amex_id",
+        "card6Digits": "amex_card6digits",
+        "password": "amex_password"
+      },
+      "targets": [
+        {
+          "sureAccountId": "00000000-0000-0000-0000-000000000008",
+          "sureAccountName": "American Express",
+          "accounts": "all"
+        }
+      ]
+    }
+  }
+}

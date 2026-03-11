@@ -1,0 +1,22 @@
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+*.log
+
+# Secrets — NEVER commit
+secrets/
+# Config with real values — NEVER commit
+config.json
+
+# Runtime state
+cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp

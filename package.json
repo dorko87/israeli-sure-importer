@@ -1,0 +1,32 @@
+{
+  "name": "israeli-sure-importer",
+  "version": "1.0.0",
+  "description": "Import Israeli bank transactions into Sure Finance",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "israeli-bank-scrapers": "^6.7.1",
+    "puppeteer": "22.15.0",
+    "node-cron": "^3.0.3",
+    "node-fetch": "^2.7.0",
+    "form-data": "^4.0.1",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/node-fetch": "^2.6.12",
+    "@types/form-data": "^2.5.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
