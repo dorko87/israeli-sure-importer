@@ -48,6 +48,17 @@ export async function scrapeBank(
 
   const showBrowser = process.env['SHOW_BROWSER'] === 'true';
 
+  // Persistent browser profile — banks remember the "device" and skip security challenges.
+  // Each bank gets its own sub-directory so sessions don't collide.
+  // When BROWSER_DATA_DIR is unset, userDataDir is omitted and Chromium uses a temp dir
+  // (old behaviour — no persistence, challenges on every run).
+  const browserDataDir = process.env['BROWSER_DATA_DIR'];
+  const userDataDir = browserDataDir ? `${browserDataDir}/${companyId}` : undefined;
+
+  if (userDataDir) {
+    logger.debug(`${companyId}: using persistent browser profile at ${userDataDir}`);
+  }
+
   // Launch browser ourselves so we can set protocolTimeout (the CDP-level timeout,
   // separate from navigation timeout). Israeli bank sites can trigger JS operations
   // that take longer than puppeteer's 180 s default, causing Runtime.callFunctionOn
@@ -56,6 +67,7 @@ export async function scrapeBank(
     headless: !showBrowser,
     args: CHROMIUM_DOCKER_ARGS,
     protocolTimeout: SCRAPER_TIMEOUT_MS,
+    ...(userDataDir ? { userDataDir } : {}),
     ...(process.env['PUPPETEER_EXECUTABLE_PATH']
       ? { executablePath: process.env['PUPPETEER_EXECUTABLE_PATH'] }
       : {}),
