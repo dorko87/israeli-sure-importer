@@ -7,22 +7,9 @@ services:
     # Hardened: run as non-root
     user: "1000:1000"
 
-    # Hardened: read-only root filesystem
-    read_only: true
-
-    # Writable scratch space for Chromium temp files
-    tmpfs:
-      - /tmp:size=64m,uid=1000,gid=1000,mode=1700
-      - /home/node:size=32m,uid=1000,gid=1000,mode=0700
-
-    # Security options
+    # Security options — cap_drop:ALL breaks Chromium's zygote subprocess forking
     security_opt:
       - no-new-privileges:true
-    cap_drop:
-      - ALL
-    # No cap_add needed: Chromium runs with --no-sandbox + --disable-setuid-sandbox
-    # (configured in scraper.ts) which eliminates the SYS_ADMIN requirement.
-    # The Docker container itself is the isolation boundary.
 
     # No inbound ports — this container is outbound-only
     # NEVER add a ports: entry here
