@@ -57,16 +57,25 @@ function toCsvDate(raw: unknown): string {
 }
 
 /**
- * Stable fingerprint for a transaction using its ORIGINAL (un-capped) date.
- * Format: DD/MM/YYYY|amount|name
- * Using the original date ensures installment payments get the same fingerprint
- * across runs even when their future date is capped to different "today" values.
+ * Stable fingerprint for a transaction.
+ * Format: DD/MM/YYYY|amount|name|memo
+ *
+ * Uses originalDate (the stable purchase date) over date (chargedDate) so that
+ * installment payments keep the same fingerprint across scrapes even when the
+ * bank's chargedDate drifts from run to run.
+ *
+ * Including memo means "תשלום 3 מתוך 12" and "תשלום 4 מתוך 12" produce distinct
+ * fingerprints even though they share the same originalDate, amount, and name —
+ * so each monthly installment is correctly imported.
  */
 function txnFingerprint(txn: Transaction): string {
-  const origDate = toCsvDate(txn.date ?? txn.processedDate) || 'nodate';
+  // originalDate is the original purchase date — stable across scrapes.
+  // txn.date is the chargedDate which can drift between runs for installments.
+  const stableDate = toCsvDate(txn.originalDate ?? txn.date ?? txn.processedDate) || 'nodate';
   const amount = String(txn.chargedAmount ?? 0);
   const name = (txn.description ?? '').trim();
-  return `${origDate}|${amount}|${name}`;
+  const memo = (txn.memo ?? '').trim();
+  return `${stableDate}|${amount}|${name}|${memo}`;
 }
 
 /**
