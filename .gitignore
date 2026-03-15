@@ -11,6 +11,7 @@ config.json
 
 # Runtime state
 cache/
+browser-data/
 
 # OS
 .DS_Store
