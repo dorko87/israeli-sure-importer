@@ -2,7 +2,7 @@ import type { ResolvedConfig } from './config.js';
 import { scrapeBank } from './scraper.js';
 import { buildCsvPerTarget } from './mapper.js';
 import { uploadCsv } from './sure-client.js';
-import { getStartDate, saveStartDate } from './state.js';
+import { getStartDate, saveStartDate, getSeenFingerprints, addSeenFingerprints } from './state.js';
 import { logger } from './logger.js';
 
 /**
@@ -43,6 +43,7 @@ async function importBank(
   sure: ResolvedConfig['sure'],
 ): Promise<void> {
   const startDate = getStartDate(companyId);
+  const seen = getSeenFingerprints(companyId);
 
   // Scrape
   const accounts = await scrapeBank(companyId, credentials, startDate);
@@ -53,7 +54,7 @@ async function importBank(
   }
 
   // Build one CSV per target
-  const csvMap = buildCsvPerTarget(accounts, targets);
+  const { csvMap, newFingerprints } = buildCsvPerTarget(accounts, targets, seen);
 
   if (csvMap.size === 0) {
     logger.info(`${companyId}: no transactions matched any target — skipping upload`);
@@ -80,6 +81,7 @@ async function importBank(
     logger.debug(`${companyId}: upload to "${label}" completed in ${Date.now() - t0}ms`);
   }
 
-  // Persist sync state only after all uploads succeed
+  // Persist sync state and seen fingerprints only after all uploads succeed
+  addSeenFingerprints(companyId, newFingerprints);
   saveStartDate(companyId, new Date());
 }

@@ -57,6 +57,19 @@ function toCsvDate(raw: unknown): string {
 }
 
 /**
+ * Stable fingerprint for a transaction using its ORIGINAL (un-capped) date.
+ * Format: DD/MM/YYYY|amount|name
+ * Using the original date ensures installment payments get the same fingerprint
+ * across runs even when their future date is capped to different "today" values.
+ */
+function txnFingerprint(txn: Transaction): string {
+  const origDate = toCsvDate(txn.date ?? txn.processedDate) || 'nodate';
+  const amount = String(txn.chargedAmount ?? 0);
+  const name = (txn.description ?? '').trim();
+  return `${origDate}|${amount}|${name}`;
+}
+
+/**
  * Converts a single scraper Transaction to the Sure CSV row format.
  * chargedAmount is already signed: negative for charges, positive for credits.
  */
@@ -124,8 +137,10 @@ const CSV_HEADER = 'date,amount,name,notes';
 export function buildCsvPerTarget(
   accounts: TransactionsAccount[],
   targets: Target[],
-): Map<string, string> {
-  const result = new Map<string, string>();
+  seen: Set<string> = new Set(),
+): { csvMap: Map<string, string>; newFingerprints: string[] } {
+  const csvMap = new Map<string, string>();
+  const newFingerprints: string[] = [];
 
   for (const target of targets) {
     const wantAccounts = target.accounts ?? 'all';
@@ -133,6 +148,8 @@ export function buildCsvPerTarget(
 
     const rows: MappedTransaction[] = [];
     let pendingFiltered = 0;
+    let zeroFiltered = 0;
+    let dupFiltered = 0;
     let futureCapped = 0;
 
     for (const account of accounts) {
@@ -150,6 +167,18 @@ export function buildCsvPerTarget(
           pendingFiltered++;
           continue;
         }
+        // Skip zero-amount transactions (unsettled/pending bank entries)
+        if (!txn.chargedAmount) {
+          zeroFiltered++;
+          continue;
+        }
+        // Skip already-imported transactions (cross-run dedup)
+        const fp = txnFingerprint(txn);
+        if (seen.has(fp)) {
+          dupFiltered++;
+          continue;
+        }
+        newFingerprints.push(fp);
         const mapped = mapTransaction(txn);
         // Detect if date was capped (original was in the future)
         const originalDate = toCsvDate(txn.date ?? txn.processedDate);
@@ -160,14 +189,17 @@ export function buildCsvPerTarget(
       logger.debug(`  account ${account.accountNumber}: ${account.txns.length} txns total`);
     }
 
-    if (pendingFiltered > 0) logger.debug(`  target "${target.sureAccountName ?? target.sureAccountId}": ${pendingFiltered} pending txn(s) filtered`);
-    if (futureCapped > 0)    logger.debug(`  target "${target.sureAccountName ?? target.sureAccountId}": ${futureCapped} future-dated txn(s) capped to today`);
+    const label = target.sureAccountName ?? target.sureAccountId;
+    if (pendingFiltered > 0) logger.debug(`  target "${label}": ${pendingFiltered} pending txn(s) filtered`);
+    if (zeroFiltered > 0)    logger.debug(`  target "${label}": ${zeroFiltered} zero-amount txn(s) filtered`);
+    if (dupFiltered > 0)     logger.debug(`  target "${label}": ${dupFiltered} duplicate txn(s) skipped`);
+    if (futureCapped > 0)    logger.debug(`  target "${label}": ${futureCapped} future-dated txn(s) capped to today`);
 
     if (rows.length === 0) continue;
 
     const csv = [CSV_HEADER, ...rows.map(toCsvRow)].join('\n');
-    result.set(target.sureAccountId, csv);
+    csvMap.set(target.sureAccountId, csv);
   }
 
-  return result;
+  return { csvMap, newFingerprints };
 }
