@@ -13,6 +13,7 @@ services:
     # Writable scratch space for Chromium temp files
     tmpfs:
       - /tmp:size=64m,uid=1000,gid=1000,mode=1700
+      - /home/node:size=32m,uid=1000,gid=1000,mode=0700
 
     # Security options
     security_opt:
