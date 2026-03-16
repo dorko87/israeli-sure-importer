@@ -76,12 +76,17 @@ async function importBank(
     }
 
     logger.info(`${companyId}: uploading ${rowCount} rows to Sure account "${label}"…`);
+    for (const line of csv.split('\n').slice(1)) {
+      if (line) logger.debug(`  → ${line}`);
+    }
     const t0 = Date.now();
     await uploadCsv(sure.baseUrl, sure.apiKey, sureAccountId, csv, label);
     logger.debug(`${companyId}: upload to "${label}" completed in ${Date.now() - t0}ms`);
   }
 
-  // Persist sync state and seen fingerprints only after all uploads succeed
-  addSeenFingerprints(companyId, newFingerprints);
-  saveStartDate(companyId, new Date());
+  // Persist sync state and seen fingerprints only after all uploads succeed (skip in dry-run)
+  if (!dryRun) {
+    addSeenFingerprints(companyId, newFingerprints);
+    saveStartDate(companyId, new Date());
+  }
 }
