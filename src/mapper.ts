@@ -188,6 +188,10 @@ export function buildCsvPerTarget(
         const fp = txnFingerprint(txn);
         if (seen.has(fp)) {
           dupFiltered++;
+          const dup = mapTransaction(txn);
+          logger.debug(
+            `  ~ ${dup.date} | ${dup.amount} | ${dup.name} [duplicate — already imported]`,
+          );
           continue;
         }
         newFingerprints.push(fp);
@@ -195,6 +199,10 @@ export function buildCsvPerTarget(
         // Detect if date was capped (original was in the future)
         const originalDate = toCsvDate(txn.date ?? txn.processedDate);
         if (originalDate !== mapped.date) futureCapped++;
+        logger.debug(
+          `  + ${mapped.date} | ${mapped.amount} | ${mapped.name}` +
+          (mapped.status === 'pending' ? ' [pending]' : ''),
+        );
         rows.push(mapped);
       }
 
