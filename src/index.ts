@@ -236,6 +236,11 @@ async function run(): Promise<void> {
 async function main(): Promise<void> {
   if (runOnce || !scheduleExpr) {
     await run();
+    // Flush all Winston transports (file buffer) before exiting
+    await new Promise<void>(resolve => {
+      logger.once('finish', resolve);
+      logger.end();
+    });
     process.exit(0);
   }
 
