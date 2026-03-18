@@ -157,14 +157,14 @@ Contains only structure — no credentials, no API keys. Safe to commit.
 | `LOG_LEVEL` | `info` | `error` / `warn` / `info` / `debug` |
 | `SCHEDULE` | — | Cron expression. Remove entirely to run once and exit. |
 | `DAYS_BACK` | `30` | Days to fetch on the very first run |
-| `TIMEOUT_MINUTES` | `20` | Per-bank timeout (also sets Puppeteer protocolTimeout) |
+| `TIMEOUT_MINUTES` | `10` | Per-bank timeout (also sets Puppeteer defaultTimeout) |
 | `PUBLISH` | `"false"` | `"false"` = review queue · `"true"` = auto-process |
 | `DRY_RUN` | `"false"` | `"true"` = scrape only, no uploads to Sure |
 | `IMPORT_PENDING` | `"false"` | `"true"` = include bank-pending transactions |
 | `BROWSER_DATA_DIR` | `/app/browser-data` | Per-bank browser profile path. Remove to use fresh session every run. |
 | `NOTIFY_ON_LOGIN_FAIL` | `"true"` | Telegram alert on bank login failure |
 | `NOTIFY_ON_SYNC_FAIL` | `"true"` | Telegram alert when entire sync fails |
-| `NOTIFY_ERROR_THRESHOLD` | `3` | Telegram alert when failed tx count ≥ this |
+| `NOTIFY_ERROR_THRESHOLD` | `0` | Telegram alert when failed tx count ≥ this |
 | `NOTIFY_ON_SUCCESS` | `"false"` | Telegram summary on successful sync |
 
 ### `merchants.json`
@@ -173,12 +173,12 @@ Optional merchant name overrides. Maps raw bank description strings to clean nam
 using fuzzy (contains) matching. Safe to commit.
 
 ```json
-{
-  "רמי לוי":    { "name": "Rami Levy" },
-  "סונול":      { "name": "Sonol" },
-  "NETFLIX":    { "name": "Netflix" },
-  "HOT MOBILE": { "name": "Hot Mobile" }
-}
+[
+  { "pattern": "רמי לוי",    "name": "Rami Levy" },
+  { "pattern": "סונול",      "name": "Sonol" },
+  { "pattern": "NETFLIX",    "name": "Netflix" },
+  { "pattern": "HOT MOBILE", "name": "Hot Mobile" }
+]
 ```
 
 The raw bank description is always preserved in the `notes` field in Sure regardless
@@ -235,7 +235,7 @@ identical and all but the first would be incorrectly skipped.
 | Massad | `massad` | `username`, `password` |
 | Union Bank | `union` | `username`, `password` |
 | Yahav | `yahav` | `username`, `password`, `nationalId` |
-| Visa Cal | `visacal` | `username`, `password` |
+| Visa Cal | `visaCal` | `username`, `password` |
 | Max (Leumi Card) | `max` | `username`, `password` |
 | Isracard | `isracard` | `id`, `card6Digits`, `password` |
 | Amex | `amex` | `username`, `card6Digits`, `password` |

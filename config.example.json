@@ -1,0 +1,26 @@
+{
+  "sure": {
+    "baseUrl": "http://sure:3000",
+    "autoCreateAccounts": true
+  },
+  "targets": [
+    {
+      "name": "Leumi Checking",
+      "companyId": "leumi",
+      "credentialSecrets": {
+        "username": "leumi_username",
+        "password": "leumi_password"
+      },
+      "sureAccountId": "auto"
+    },
+    {
+      "name": "Max Card",
+      "companyId": "max",
+      "credentialSecrets": {
+        "username": "max_username",
+        "password": "max_password"
+      },
+      "sureAccountId": "auto"
+    }
+  ]
+}
