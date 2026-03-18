@@ -1,0 +1,74 @@
+services:
+  israeli-sure-importer:
+    build: .
+    container_name: israeli-sure-importer
+    restart: unless-stopped
+
+    # Chromium requires extra shared memory
+    shm_size: 256mb
+
+    security_opt:
+      - no-new-privileges:true
+
+    environment:
+      TZ: Asia/Jerusalem
+      NODE_ENV: production
+      LOG_LEVEL: info
+
+      # Cron schedule (Asia/Jerusalem). Remove or leave blank to run once and exit.
+      SCHEDULE: "0 8 * * *"
+
+      # Days to look back on first run (default: 30)
+      DAYS_BACK: "30"
+
+      # Per-bank timeout in minutes (also sets Puppeteer protocolTimeout)
+      TIMEOUT_MINUTES: "10"
+
+      # "false" = import goes to Sure review queue; "true" = auto-process
+      PUBLISH: "false"
+
+      # "true" = skip all Sure API writes (scrape and log only)
+      DRY_RUN: "false"
+
+      # "true" = include bank-pending transactions
+      IMPORT_PENDING: "false"
+
+      # Puppeteer — use system Chromium installed in the image
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
+
+      # Browser profile directory — persists 2FA device recognition per bank
+      BROWSER_DATA_DIR: /app/browser-data
+
+      # Secret file paths (mounted read-only from secrets/)
+      SURE_API_KEY_FILE: /run/secrets/sure_api_key
+      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
+
+      # Telegram — chat ID is not sensitive, set it here directly
+      TELEGRAM_CHAT_ID: ""
+
+      # Notification controls
+      NOTIFY_ON_LOGIN_FAIL: "true"
+      NOTIFY_ON_SYNC_FAIL: "true"
+      NOTIFY_ON_SUCCESS: "false"
+      NOTIFY_ERROR_THRESHOLD: "0"
+
+    volumes:
+      # Config (read-only — no credentials inside)
+      - /mnt/user/appdata/sure/israeli-sure-importer/config.json:/app/config.json:ro
+
+      # Secrets (read-only — one file per credential)
+      - /mnt/user/appdata/sure/israeli-sure-importer/secrets:/run/secrets:ro
+
+      # State (deduplication SQLite DB)
+      - /mnt/user/appdata/sure/israeli-sure-importer/cache:/app/cache
+
+      # Chromium browser profiles (session persistence / 2FA)
+      - /mnt/user/appdata/sure/israeli-sure-importer/browser-data:/app/browser-data
+
+      # Logs
+      - /mnt/user/appdata/sure/israeli-sure-importer/logs:/app/logs
+
+    # No ports — manual triggers via docker exec only:
+    #   docker exec israeli-sure-importer node dist/index.js --run-once
+    #   docker exec israeli-sure-importer node dist/index.js --run-once --dry-run

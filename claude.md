@@ -60,7 +60,7 @@ israeli-sure-importer/
                 GET /api/v1/accounts — verify or create Sure accounts
 
 2. SCRAPE       israeli-bank-scrapers per target in config.json
-                Timeout: TIMEOUT_MINUTES (sets both job timeout + protocolTimeout)
+                Timeout: TIMEOUT_MINUTES (sets both job timeout + defaultTimeout)
                 Browser profile: BROWSER_DATA_DIR/<companyId>/
                 Error types from scraper: INVALID_PASSWORD | CHANGE_PASSWORD |
                   ACCOUNT_BLOCKED | TIMEOUT | GENERIC
@@ -275,7 +275,7 @@ All set in `compose.yml`. Never in `config.json`.
 | `LOG_LEVEL` | string | `error` / `warn` / `info` / `debug` |
 | `SCHEDULE` | string | Cron expression. Omit to run once and exit. |
 | `DAYS_BACK` | number | Days to fetch on first run (default: 30) |
-| `TIMEOUT_MINUTES` | number | Per-bank timeout + Puppeteer protocolTimeout |
+| `TIMEOUT_MINUTES` | number | Per-bank timeout + Puppeteer defaultTimeout |
 | `PUBLISH` | string | `"false"` = review queue, `"true"` = auto-process |
 | `DRY_RUN` | string | `"true"` = skip all Sure API writes |
 | `IMPORT_PENDING` | string | `"true"` = include bank-pending transactions |
@@ -395,7 +395,7 @@ docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
 | `massad` | Massad | `username`, `password` |
 | `union` | Union Bank | `username`, `password` |
 | `yahav` | Yahav | `username`, `password`, `nationalId` |
-| `visacal` | Visa Cal | `username`, `password` |
+| `visaCal` | Visa Cal | `username`, `password` |
 | `max` | Max (Leumi Card) | `username`, `password` |
 | `isracard` | Isracard | `id`, `card6Digits`, `password` |
 | `amex` | Amex | `username`, `card6Digits`, `password` |
@@ -435,3 +435,86 @@ docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
   - `ajv` — config.json schema validation
 - Test with `docker compose run --rm israeli-sure-importer` before enabling schedule
 - Always run `--dry-run` first when testing changes to transformer or CSV output
+
+---
+
+## Current Status
+
+*Last updated: 2026-03-18*
+
+### Built and working
+
+All source files are implemented and TypeScript-clean (`tsc --noEmit` → zero errors):
+
+| File | Status |
+|------|--------|
+| `src/index.ts` | ✅ Complete |
+| `src/config.ts` | ✅ Complete |
+| `src/secrets.ts` | ✅ Complete |
+| `src/scraper.ts` | ✅ Complete |
+| `src/transformer.ts` | ✅ Complete |
+| `src/merchants.ts` | ✅ Complete |
+| `src/sure-client.ts` | ✅ Complete |
+| `src/state.ts` | ✅ Complete |
+| `src/notifier.ts` | ✅ Complete |
+| `src/logger.ts` | ✅ Complete |
+| `Dockerfile` | ✅ Complete |
+| `compose.yml` | ✅ Complete |
+| `config.example.json` | ✅ Complete |
+| `merchants.json` | ✅ Empty array — ready to populate |
+| `setup.sh` | ✅ Complete |
+| `secrets/README.md` | ✅ Complete |
+| `README.md` | ✅ Complete |
+
+### Fixed and verified (this session)
+
+9 bugs found in code review and fixed:
+
+| ID | Fix |
+|----|-----|
+| C1 | Added `@types/node-cron` to `devDependencies` — unblocks TypeScript compilation |
+| C2 | Fixed 5 `createScraper` option errors: `CompanyTypes` cast, `--user-data-dir` in args, `showBrowser`, `defaultTimeout`, removed non-existent `browserDataDir`/`headless`/`protocolTimeout` fields |
+| C3 | Dockerfile: `npm ci` → `npm install` — build no longer requires a committed lockfile |
+| I1 | Wired `notifyErrorThreshold()` call in `index.ts` — `NOTIFY_ERROR_THRESHOLD` env var now has effect |
+| N1 | Removed double `format: logFormat` on Console transport in `logger.ts` |
+| N2 | `autoCreateAccounts?: boolean` (optional) in `config.ts`; `?? false` at call site in `index.ts` |
+| N3 | Added `type?: string` to `Transaction` interface in `types.ts` |
+| N4 | Fixed `visaCal` casing in `CLAUDE.md` and `README.md` |
+| — | 7 documentation accuracy fixes: `protocolTimeout` → `defaultTimeout` (×4), `TIMEOUT_MINUTES` default 20→10, `NOTIFY_ERROR_THRESHOLD` default 3→0, `merchants.json` example format (object → array of `{pattern, name}`) |
+
+### Not started / known gaps
+
+- **Never run against real banks** — no credentials configured, no live test performed
+- **Docker image not built on Unraid** — build has only been reviewed, not executed end-to-end
+- **`state.db` is empty** — first real run will import everything within `DAYS_BACK` (expect a large initial batch; use `PUBLISH=false` to review before committing)
+- **Browser 2FA sessions not established** — `browser-data/` is empty; first run per bank may require manual intervention if the bank demands 2FA on a new device
+- **No `package-lock.json` committed** — build resolves latest semver-compatible versions at image build time; commit the lockfile after first `npm install` if reproducible builds are important
+- **`merchants.json` is empty** — functional but no merchant normalization until entries are added
+
+### Next logical step
+
+Deploy and do a first real test run:
+
+```bash
+# 1. On Unraid — create directories and set ownership
+mkdir -p /mnt/user/appdata/sure/israeli-sure-importer/{cache,browser-data,logs}
+chown -R 1000:1000 /mnt/user/appdata/sure/israeli-sure-importer/
+
+# 2. Copy files and run setup wizard
+bash setup.sh          # creates secrets/ with chmod 400 files
+
+# 3. Edit config.json (copy from config.example.json)
+
+# 4. Build the image
+docker compose build
+
+# 5. Dry run first — scrape only, no Sure API writes
+docker compose run --rm israeli-sure-importer node dist/index.js --run-once --dry-run
+
+# 6. Review log output, then run for real with PUBLISH=false
+docker compose run --rm israeli-sure-importer
+
+# 7. Open Sure UI → Transactions → Imports → confirm the pending import
+# 8. If data looks correct, set PUBLISH=true and start on schedule
+docker compose up -d
+```

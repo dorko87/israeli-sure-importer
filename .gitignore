@@ -1,0 +1,14 @@
+node_modules/
+dist/
+
+# Runtime dirs — created on the host, mounted into container
+cache/
+browser-data/
+logs/
+
+# Secrets — never commit
+secrets/*
+!secrets/README.md
+
+# User config — contains site-specific URLs, never credentials
+config.json
