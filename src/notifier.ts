@@ -17,7 +17,10 @@ export function initNotifier(token: string | null): void {
 }
 
 async function send(text: string): Promise<void> {
-  if (!botToken || !chatId) return;
+  if (!botToken || !chatId) {
+    logger.debug('Telegram notification skipped — no token or chat_id configured');
+    return;
+  }
 
   try {
     await axios.post(
@@ -25,6 +28,7 @@ async function send(text: string): Promise<void> {
       { chat_id: chatId, text, parse_mode: 'HTML' },
       { timeout: 10_000 }
     );
+    logger.info('Telegram notification sent');
   } catch (err) {
     logger.warn(`Telegram notification failed: ${String(err)}`);
   }
