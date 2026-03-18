@@ -224,6 +224,8 @@ async function run(): Promise<void> {
 
   if (!dryRun && successCount > 0 && failCount === 0) {
     await notifySuccess(summary);
+  } else if (dryRun) {
+    logger.debug('Skipping success notification — dry run');
   }
 
   logger.info('=== Run finished ===');

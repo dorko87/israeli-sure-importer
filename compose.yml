@@ -1,6 +1,6 @@
 services:
   israeli-sure-importer:
-    build: .
+    image: dorko87/israeli-sure-importer:latest
     container_name: israeli-sure-importer
     restart: unless-stopped
 
@@ -13,7 +13,7 @@ services:
     environment:
       TZ: Asia/Jerusalem
       NODE_ENV: production
-      LOG_LEVEL: info
+      LOG_LEVEL: debug
 
       # Cron schedule (Asia/Jerusalem). Remove or leave blank to run once and exit.
       SCHEDULE: "0 8 * * *"
@@ -28,7 +28,7 @@ services:
       PUBLISH: "false"
 
       # "true" = skip all Sure API writes (scrape and log only)
-      DRY_RUN: "false"
+      DRY_RUN: "true"
 
       # "true" = include bank-pending transactions
       IMPORT_PENDING: "false"
