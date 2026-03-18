@@ -236,12 +236,12 @@ async function run(): Promise<void> {
 async function main(): Promise<void> {
   if (runOnce || !scheduleExpr) {
     await run();
-    // Flush all Winston transports (file buffer) before exiting
-    await new Promise<void>(resolve => {
-      logger.once('finish', resolve);
-      logger.end();
-    });
-    process.exit(0);
+    // Set exit code and return — Node.js drains file transport buffers naturally.
+    // process.exit() would kill buffered writes immediately; this avoids that.
+    // Force-exit after 3 s as a fallback in case Puppeteer left lingering handles.
+    process.exitCode = 0;
+    setTimeout(() => process.exit(0), 3000).unref();
+    return;
   }
 
   // Scheduled mode — keep process alive
