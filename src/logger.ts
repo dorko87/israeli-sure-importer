@@ -27,11 +27,12 @@ const logFormat = winston.format.combine(
 
 const transports: winston.transport[] = [
   new DailyRotateFile({
-    filename: '/app/logs/importer.log',
+    filename: '/app/logs/importer-%DATE%.log',
     datePattern: 'YYYY-MM-DD',
     maxFiles: '14d',
     auditFile: '/app/logs/.audit.json',
-    createSymlink: false,
+    createSymlink: true,
+    symlinkName: 'importer.log',
   }),
   new winston.transports.Console(),
 ];
