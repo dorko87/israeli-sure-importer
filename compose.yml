@@ -11,8 +11,7 @@ services:
     environment:
       TZ: Asia/Jerusalem
       NODE_ENV: production
-      LOG_LEVEL: info
-
+      LOG_LEVEL: debug
       # Cron schedule (Asia/Jerusalem). Remove or leave blank to run once and exit.
       SCHEDULE: "0 8 * * *"
       # Days to look back on first run (default: 30)
@@ -22,8 +21,7 @@ services:
       # "false" = import goes to Sure review queue; "true" = auto-process
       PUBLISH: "false"
       # "true" = skip all Sure API writes (scrape and log only)
-      DRY_RUN: "false"
-
+      DRY_RUN: "true"
       # "true" = include bank-pending transactions
       IMPORT_PENDING: "false"
       # Puppeteer — use system Chromium installed in the image
@@ -35,7 +33,7 @@ services:
       SURE_API_KEY_FILE: /run/secrets/sure_api_key
       TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
       # Telegram — chat ID is not sensitive, set it here directly
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      TELEGRAM_CHAT_ID: 489267263
       # Notification controls
       NOTIFY_ON_LOGIN_FAIL: "true"
       NOTIFY_ON_SYNC_FAIL: "true"
