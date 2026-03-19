@@ -34,14 +34,8 @@ no cloud, no third-party services.
 
 ### 1. Create your secret files
 
-Run the interactive setup wizard. It prompts for each credential with silent input
-(nothing echoes to the terminal), writes one file per value, and sets `chmod 400`.
-
-```bash
-bash setup.sh
-```
-
-Or create files manually:
+Create one file per credential. Each file contains the raw value only — no quotes,
+no trailing newline. Set `chmod 400` on all files.
 
 ```bash
 # Sure API key
@@ -118,13 +112,11 @@ Contains only structure — no credentials, no API keys. Safe to commit.
 {
   "sure": {
     // Sure container URL — use container name if on same Docker network
-    "baseUrl": "http://sure:3000",
-    // true = automatically create Sure account if not found
-    "autoCreateAccounts": true
+    "baseUrl": "http://sure:3000"
   },
   "targets": [
     {
-      // Label used in logs and auto-created account name
+      // Label used in logs
       "name": "Leumi Checking",
       // CompanyTypes key from israeli-bank-scrapers
       "companyId": "leumi",
@@ -133,9 +125,10 @@ Contains only structure — no credentials, no API keys. Safe to commit.
         "username": "leumi_username",
         "password": "leumi_password"
       },
-      // "auto" = match existing Sure account by name, or create it
-      // Or paste the UUID from the Sure account URL
-      "sureAccountId": "auto"
+      // UUID from Sure account settings — create the account in Sure UI first
+      // Sure UI → Accounts → New Account → select type (Cash / Credit Card)
+      // then copy the UUID from the account settings page
+      "sureAccountId": "paste-uuid-from-sure-ui"
     },
     {
       "name": "Max Credit Card",
@@ -144,7 +137,7 @@ Contains only structure — no credentials, no API keys. Safe to commit.
         "username": "max_username",
         "password": "max_password"
       },
-      "sureAccountId": "auto"
+      "sureAccountId": "paste-uuid-from-sure-ui"
     }
   ]
 }
@@ -270,7 +263,8 @@ tail -f /mnt/user/appdata/sure/israeli-sure-importer/logs/importer.log
 tail -100 /mnt/user/appdata/sure/israeli-sure-importer/logs/importer.log
 ```
 
-Rotated daily, 14 days retained. Archived files: `importer.log.2026-03-16` etc.
+Rotated daily, 14 days retained. Archived files: `importer-2026-03-16.log` etc.
+Current day's log is also accessible via the `importer.log` symlink.
 
 Set `LOG_LEVEL=debug` in `compose.yml` to see browser navigation events and
 per-transaction detail when troubleshooting a bank login or scraper failure.
@@ -364,10 +358,9 @@ Store master copies in Vaultwarden. To rotate a credential:
 
 | File | Sensitive | Description |
 |------|-----------|-------------|
-| `config.json` | No | Sure URL, account targets |
+| `config.json` | No | Sure URL, account targets with UUIDs |
 | `merchants.json` | No | Merchant name overrides |
 | `compose.yml` | No | Docker configuration |
-| `setup.sh` | No | Secret creation wizard |
 | `secrets/` | **Yes** | All credentials — gitignored |
 | `cache/state.db` | No | Dedup state — gitignored |
 | `browser-data/` | Partial | Browser sessions — gitignored |
