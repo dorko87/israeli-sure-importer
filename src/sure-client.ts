@@ -33,8 +33,8 @@ function getClient(): AxiosInstance {
 }
 
 export async function getAccounts(): Promise<SureAccount[]> {
-  const res = await getClient().get<SureAccount[]>('/api/v1/accounts');
-  return res.data;
+  const res = await getClient().get<{ accounts: SureAccount[] }>('/api/v1/accounts');
+  return res.data.accounts;
 }
 
 export async function createAccount(name: string): Promise<SureAccount> {
