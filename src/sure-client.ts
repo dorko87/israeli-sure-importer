@@ -64,20 +64,39 @@ export async function postImport(params: PostImportParams): Promise<string> {
     col_sep: ',',
   };
 
-  const res = await getClient().post<{ id: string }>('/api/v1/imports', body);
-  return res.data.id;
+  const res = await getClient().post<{ data: { id: string } }>('/api/v1/imports', body);
+  return res.data.data.id;
 }
 
 /**
  * Polls GET /api/v1/imports/:id until status is no longer pending or importing.
  * Throws if the import does not settle within POLL_MAX_ATTEMPTS × POLL_INTERVAL_MS.
  */
+interface SureImportResponse {
+  data: {
+    id: string;
+    status: string;
+    error?: string;
+    stats?: {
+      rows_count?: number;
+      valid_rows_count?: number;
+    };
+  };
+}
+
 export async function pollImport(importId: string): Promise<ImportResult> {
   const pending = new Set(['pending', 'importing']);
 
   for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
-    const res = await getClient().get<ImportResult>(`/api/v1/imports/${importId}`);
-    const result = res.data;
+    const res = await getClient().get<SureImportResponse>(`/api/v1/imports/${importId}`);
+    const d = res.data.data;
+    const result: ImportResult = {
+      id: d.id,
+      status: d.status,
+      rows_count: d.stats?.rows_count,
+      valid_rows_count: d.stats?.valid_rows_count,
+      error: d.error,
+    };
 
     if (!pending.has(result.status)) {
       return result;
