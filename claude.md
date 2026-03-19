@@ -41,7 +41,6 @@ israeli-sure-importer/
 ├── merchants.json        ← merchant name overrides — safe to commit
 ├── secrets/
 │   └── README.md         ← instructions for creating secret files
-├── setup.sh              ← interactive wizard to create secrets/
 ├── compose.yml           ← Docker Compose (single service, no ports)
 ├── Dockerfile            ← Node 22 + Chromium, non-root user 1000:1000
 ├── tsconfig.json
@@ -57,7 +56,7 @@ israeli-sure-importer/
 ```
 1. STARTUP      Read SURE_API_KEY_FILE → /run/secrets/sure_api_key
                 Validate all secret files exist and are non-empty
-                GET /api/v1/accounts — verify or create Sure accounts
+                GET /api/v1/accounts — verify configured Sure accounts exist
 
 2. SCRAPE       israeli-bank-scrapers per target in config.json
                 Timeout: TIMEOUT_MINUTES (sets both job timeout + defaultTimeout)
@@ -200,8 +199,7 @@ Base URL from `config.json → sure.baseUrl`. Auth: `X-Api-Key` header (value fr
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/v1/accounts` | List accounts, verify mapping |
-| `POST` | `/api/v1/accounts` | Create account (autoCreateAccounts only) |
+| `GET` | `/api/v1/accounts` | List accounts, verify UUID mapping |
 | `POST` | `/api/v1/imports` | Submit CSV import |
 | `GET` | `/api/v1/imports/:id` | Poll import status |
 
@@ -230,6 +228,7 @@ Base URL from `config.json → sure.baseUrl`. Auth: `X-Api-Key` header (value fr
 `pending` | `importing` | `complete` | `failed` | `reverting` | `revert_failed`
 
 ### NOT used — do not add
+- `POST /api/v1/accounts` — accounts are created manually in the Sure UI, not by the importer
 - `POST /api/v1/transactions` — direct transaction creation is not used
 - `GET/POST /api/v1/merchants` — merchant handling is done locally via merchants.json
 - Categories API — categorization is handled by Sure's built-in Rules engine after import
@@ -243,8 +242,7 @@ Base URL from `config.json → sure.baseUrl`. Auth: `X-Api-Key` header (value fr
 ```jsonc
 {
   "sure": {
-    "baseUrl": "http://sure:3000",   // Sure container hostname/port
-    "autoCreateAccounts": true        // create Sure account if not found
+    "baseUrl": "http://sure:3000"    // Sure container hostname/port
   },
   "targets": [
     {
@@ -254,11 +252,15 @@ Base URL from `config.json → sure.baseUrl`. Auth: `X-Api-Key` header (value fr
         "username": "leumi_username", // reads /run/secrets/leumi_username
         "password": "leumi_password"
       },
-      "sureAccountId": "auto"         // "auto" = match by name, or paste UUID
+      "sureAccountId": "paste-uuid-from-sure-ui"  // UUID from Sure account settings
     }
   ]
 }
 ```
+
+**Create Sure accounts manually in the Sure UI before first run.**
+Select the correct account type (Cash for bank accounts, Credit Card for cards).
+Get the UUID from the Sure account settings and paste it here.
 
 **Never add credentials, API keys, or tokens to config.json.**
 
@@ -440,11 +442,11 @@ docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
 
 ## Current Status
 
-*Last updated: 2026-03-18*
+*Last updated: 2026-03-19*
 
-### Built and working
+### Live and verified
 
-All source files are implemented and TypeScript-clean (`tsc --noEmit` → zero errors):
+All source files implemented, tested end-to-end against real banks (Mizrahi Bank + Max):
 
 | File | Status |
 |------|--------|
@@ -462,59 +464,44 @@ All source files are implemented and TypeScript-clean (`tsc --noEmit` → zero e
 | `compose.yml` | ✅ Complete |
 | `config.example.json` | ✅ Complete |
 | `merchants.json` | ✅ Empty array — ready to populate |
-| `setup.sh` | ✅ Complete |
 | `secrets/README.md` | ✅ Complete |
 | `README.md` | ✅ Complete |
 
-### Fixed and verified (this session)
-
-9 bugs found in code review and fixed:
+### All fixes applied and verified
 
 | ID | Fix |
 |----|-----|
-| C1 | Added `@types/node-cron` to `devDependencies` — unblocks TypeScript compilation |
-| C2 | Fixed 5 `createScraper` option errors: `CompanyTypes` cast, `--user-data-dir` in args, `showBrowser`, `defaultTimeout`, removed non-existent `browserDataDir`/`headless`/`protocolTimeout` fields |
-| C3 | Dockerfile: `npm ci` → `npm install` — build no longer requires a committed lockfile |
-| I1 | Wired `notifyErrorThreshold()` call in `index.ts` — `NOTIFY_ERROR_THRESHOLD` env var now has effect |
+| C1 | Added `@types/node-cron` to `devDependencies` |
+| C2 | Fixed 5 `createScraper` option errors: `CompanyTypes` cast, `--user-data-dir` in args, `showBrowser`, `defaultTimeout`, removed non-existent fields |
+| C3 | Dockerfile: `npm ci` → `npm install` |
+| I1 | Wired `notifyErrorThreshold()` call in `index.ts` |
+| I2 | `process.exitCode = 0` + `setTimeout(...).unref()` instead of `process.exit(0)` — fixes log file truncation |
+| I3 | `notifySuccess` gate: added `logger.debug('Skipping success notification — dry run')` |
 | N1 | Removed double `format: logFormat` on Console transport in `logger.ts` |
-| N2 | `autoCreateAccounts?: boolean` (optional) in `config.ts`; `?? false` at call site in `index.ts` |
 | N3 | Added `type?: string` to `Transaction` interface in `types.ts` |
-| N4 | Fixed `visaCal` casing in `CLAUDE.md` and `README.md` |
-| — | 7 documentation accuracy fixes: `protocolTimeout` → `defaultTimeout` (×4), `TIMEOUT_MINUTES` default 20→10, `NOTIFY_ERROR_THRESHOLD` default 3→0, `merchants.json` example format (object → array of `{pattern, name}`) |
+| S1 | `sure-client.ts`: `getAccounts()` now returns `res.data.accounts` — Sure API wraps array in `{ accounts: [], pagination: {} }` |
+| S2 | Removed auto account creation — accounts must be created manually in Sure UI with correct type (Cash / Credit Card); UUID pasted into `config.json` |
+| L1 | `notifier.ts`: added `logger.info('Telegram notification sent')` and `logger.debug('skipped — no token or chat_id')` |
+| L2 | Log files use dated filename `importer-YYYY-MM-DD.log` with `importer.log` symlink to current day |
 
-### Not started / known gaps
+### Known gaps
 
-- **Never run against real banks** — no credentials configured, no live test performed
-- **Docker image not built on Unraid** — build has only been reviewed, not executed end-to-end
-- **`state.db` is empty** — first real run will import everything within `DAYS_BACK` (expect a large initial batch; use `PUBLISH=false` to review before committing)
-- **Browser 2FA sessions not established** — `browser-data/` is empty; first run per bank may require manual intervention if the bank demands 2FA on a new device
-- **No `package-lock.json` committed** — build resolves latest semver-compatible versions at image build time; commit the lockfile after first `npm install` if reproducible builds are important
 - **`merchants.json` is empty** — functional but no merchant normalization until entries are added
+- **Browser 2FA sessions** — `browser-data/` holds Chromium profiles; if a bank forces 2FA, log in manually via the real browser first
+- **Stale Chromium lock** — if a run is killed mid-scrape, `browser-data/<companyId>/SingletonLock` may remain; delete it before next run: `find .../browser-data/ -name "SingletonLock" -delete`
 
-### Next logical step
-
-Deploy and do a first real test run:
+### Normal operation
 
 ```bash
-# 1. On Unraid — create directories and set ownership
-mkdir -p /mnt/user/appdata/sure/israeli-sure-importer/{cache,browser-data,logs}
-chown -R 1000:1000 /mnt/user/appdata/sure/israeli-sure-importer/
-
-# 2. Copy files and run setup wizard
-bash setup.sh          # creates secrets/ with chmod 400 files
-
-# 3. Edit config.json (copy from config.example.json)
-
-# 4. Build the image
-docker compose build
-
-# 5. Dry run first — scrape only, no Sure API writes
+# Dry run (scrape only, no Sure writes)
 docker compose run --rm israeli-sure-importer node dist/index.js --run-once --dry-run
 
-# 6. Review log output, then run for real with PUBLISH=false
-docker compose run --rm israeli-sure-importer
+# Real run (imports to Sure review queue)
+docker compose run --rm israeli-sure-importer node dist/index.js --run-once
 
-# 7. Open Sure UI → Transactions → Imports → confirm the pending import
-# 8. If data looks correct, set PUBLISH=true and start on schedule
+# Start on schedule
 docker compose up -d
+
+# Tail live log
+tail -f /mnt/user/appdata/sure/israeli-sure-importer/logs/importer.log
 ```

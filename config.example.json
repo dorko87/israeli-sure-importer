@@ -1,7 +1,6 @@
 {
   "sure": {
-    "baseUrl": "http://sure:3000",
-    "autoCreateAccounts": true
+    "baseUrl": "http://sure:3000"
   },
   "targets": [
     {
@@ -11,7 +10,7 @@
         "username": "leumi_username",
         "password": "leumi_password"
       },
-      "sureAccountId": "auto"
+      "sureAccountId": "paste-uuid-from-sure-ui"
     },
     {
       "name": "Max Card",
@@ -20,7 +19,7 @@
         "username": "max_username",
         "password": "max_password"
       },
-      "sureAccountId": "auto"
+      "sureAccountId": "paste-uuid-from-sure-ui"
     }
   ]
 }

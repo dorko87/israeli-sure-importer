@@ -73,7 +73,7 @@ Most important first.
 
 - **File-based secret management** — all credentials live in individual
   `chmod 400` files under `secrets/`; never in environment variables, config files,
-  or image layers; `setup.sh` wizard handles first-time creation
+  or image layers; created manually with one file per credential
 
 - **Telegram failure alerts** — sends alerts on bank login failure, full sync
   failure, and when failed transaction count reaches a configurable threshold;
@@ -87,10 +87,6 @@ Most important first.
 - **Dry run mode** — `--dry-run` flag (or `DRY_RUN=true`) runs the full pipeline
   including scraping, filtering, and CSV generation but skips all Sure API writes;
   used for testing configuration changes safely
-
-- **Optional auto account creation** — when `autoCreateAccounts: true`, the bridge
-  calls Sure's accounts API to create a matching account if one is not found;
-  `sureAccountId: "auto"` triggers name-based matching before creation
 
 - **Per-bank browser session persistence** — Chromium profiles stored per bank
   under `BROWSER_DATA_DIR`; banks remember the "device" and skip 2FA challenges
@@ -108,20 +104,27 @@ Most important first.
 
 ```
 User clones repo
-  → runs bash setup.sh
-    → wizard prompts for each credential (silent input, no terminal echo)
-    → wizard writes one file per credential to secrets/ with chmod 400
+  → creates secret files manually (one file per credential, chmod 400)
+      echo -n "value" > secrets/sure_api_key && chmod 400 secrets/sure_api_key
+      (repeat for telegram_bot_token and each bank credential)
+  → opens Sure UI → creates one account per bank target
+      select correct type: Cash for bank accounts, Credit Card for cards
+      copy the account UUID from Sure account settings
   → copies config.example.json → config.json
-  → edits config.json: sets sure.baseUrl, adds bank targets with companyId
-    and credentialSecrets references, leaves sureAccountId as "auto"
+  → edits config.json: sets sure.baseUrl, adds bank targets with companyId,
+    credentialSecrets references, and sureAccountId UUID for each target
   → edits compose.yml: sets TELEGRAM_CHAT_ID, adjusts SCHEDULE if needed
   → runs: mkdir -p .../cache .../browser-data .../logs && chown -R 1000:1000 ...
-  → runs: docker compose build
-  → runs: docker compose run --rm israeli-sure-importer
+  → pulls image: docker pull dorko87/israeli-sure-importer:latest
+  → dry run first — scrape only, no Sure API writes:
+      docker compose run --rm israeli-sure-importer node dist/index.js --run-once --dry-run
+  → reviews log output: checks dates, amounts, merchant names, CSV content
+  → real run with PUBLISH=false:
+      docker compose run --rm israeli-sure-importer node dist/index.js --run-once
     → container scrapes all configured banks
     → generates CSV per bank
     → posts CSV to Sure with PUBLISH=false
-    → log shows: "[leumi] Import status: pending — review in Sure UI"
+    → log shows: "[Mizrahi Bank] Import status: complete — review in Sure UI"
   → user opens Sure UI → Transactions → Imports
     → reviews pending import: checks dates, amounts, merchant names, notes
     → confirms import → transactions appear in Sure
@@ -215,10 +218,10 @@ User's bank password changed
 ### Entities
 
 **Target** (defined in `config.json`)
-- `name` — human label, used in logs and as Sure account name for auto-creation
+- `name` — human label, used in logs
 - `companyId` — `israeli-bank-scrapers` CompanyTypes key (e.g. `"leumi"`, `"max"`)
 - `credentialSecrets` — map of credential field name → secret filename (e.g. `{ "username": "leumi_username" }`)
-- `sureAccountId` — Sure account UUID, or `"auto"` for name-based match/create
+- `sureAccountId` — Sure account UUID (create account manually in Sure UI, then paste UUID here)
 
 **Transaction** (scraped, in-memory only — never persisted raw)
 - `accountNumber` — bank account number from scraper result
