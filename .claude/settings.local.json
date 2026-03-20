@@ -8,7 +8,8 @@
       "Bash(curl -s -X POST http://192.168.1.100:9120/read -H \"X-Api-Key: $KOMODO_API_KEY\" -H \"X-Api-Secret: $KOMODO_API_SECRET\" -H \"Content-Type: application/json\" -d '{\"\"type\"\":\"\"GetStackLog\"\",\"\"params\"\":{\"\"stack\"\":\"\"sure\"\",\"\"services\"\":[],\"\"tail\"\":80}}')",
       "Bash(python3 -c \"import sys,json; d=json.loads\\(sys.stdin.read\\(\\)\\); log=d.get\\(''''stdout'''',''''''''\\)+d.get\\(''''stderr'''',''''''''\\); [print\\(l\\) for l in log.split\\(''''\\\\n''''\\) if any\\(k in l.lower\\(\\) for k in [''''import'''',''''error'''',''''exception'''',''''fail'''',''''transaction'''']\\)]\")",
       "Bash(docker build:*)",
-      "Bash(docker.exe build:*)"
+      "Bash(docker.exe build:*)",
+      "Bash(node -e \":*)"
     ]
   }
 }
