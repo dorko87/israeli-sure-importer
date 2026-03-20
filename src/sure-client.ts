@@ -84,10 +84,14 @@ interface SureImportResponse {
   };
 }
 
-export async function pollImport(importId: string): Promise<ImportResult> {
+export async function pollImport(
+  importId: string,
+  options?: { maxAttempts?: number }
+): Promise<ImportResult> {
   const pending = new Set(['pending', 'importing']);
+  const maxAttempts = options?.maxAttempts ?? POLL_MAX_ATTEMPTS;
 
-  for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const res = await getClient().get<SureImportResponse>(`/api/v1/imports/${importId}`);
     const d = res.data.data;
     const result: ImportResult = {
@@ -102,11 +106,11 @@ export async function pollImport(importId: string): Promise<ImportResult> {
       return result;
     }
 
-    logger.debug(`[import ${importId}] status=${result.status} — polling (attempt ${attempt + 1}/${POLL_MAX_ATTEMPTS})`);
+    logger.debug(`[import ${importId}] status=${result.status} — polling (attempt ${attempt + 1}/${maxAttempts})`);
     await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 
   throw new Error(
-    `Import ${importId} did not complete within ${POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000}s`
+    `Import ${importId} did not complete within ${maxAttempts * POLL_INTERVAL_MS / 1000}s`
   );
 }
