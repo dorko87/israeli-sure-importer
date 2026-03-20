@@ -8,6 +8,7 @@ import {
   createAccount,
   postImport,
   pollImport,
+  checkImport,
 } from './sure-client';
 import { initNotifier, notifyLoginFail, notifySyncFail, notifySuccess, notifyErrorThreshold } from './notifier';
 import { scrapeTarget } from './scraper';
@@ -97,7 +98,7 @@ async function processTarget(
     const newCount = txResult.rows.length;
     logger.info(
       `[${target.name}] account=${account.accountNumber} | scraped=${account.txns.length}` +
-      ` → ${newCount} new | dedup=${txResult.alreadySeenSkipped} zero=${txResult.zeroAmountSkipped} pending=${txResult.pendingSkipped}`
+      ` → ${newCount} new | dedup=${txResult.alreadySeenSkipped} zero=${txResult.zeroAmountSkipped} future=${txResult.futureSkipped} pending=${txResult.pendingSkipped}`
     );
 
     if (newCount === 0) continue;
@@ -118,14 +119,9 @@ async function processTarget(
     // When publish=false, Sure places the import in the review queue with status=pending.
     // That is the terminal state — it won't change until the user confirms in the Sure UI.
     // When publish=true, Sure auto-processes: pending → importing → complete.
-    let importResult;
-    if (publish !== 'true') {
-      // Single status check — confirm the import was accepted (not immediately failed)
-      importResult = await pollImport(importId, { maxAttempts: 1 });
-    } else {
-      // Full poll — wait for Sure to finish auto-processing
-      importResult = await pollImport(importId);
-    }
+    const importResult = publish !== 'true'
+      ? await checkImport(importId)  // single GET — pending is the expected terminal state
+      : await pollImport(importId);  // full poll — wait for auto-processing to complete
 
     const rowSummary = `${importResult.valid_rows_count ?? '?'}/${importResult.rows_count ?? '?'} rows`;
 
