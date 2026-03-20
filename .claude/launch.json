@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "TypeScript Watch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 0
+    },
+    {
+      "name": "Run Importer",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "port": 0
+    },
+    {
+      "name": "Run Once (dry run)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dist/index.js", "--run-once", "--dry-run"],
+      "port": 0
+    },
+    {
+      "name": "Run Once (real)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dist/index.js", "--run-once"],
+      "port": 0
+    }
+  ]
+}

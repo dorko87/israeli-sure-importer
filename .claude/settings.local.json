@@ -9,7 +9,9 @@
       "Bash(python3 -c \"import sys,json; d=json.loads\\(sys.stdin.read\\(\\)\\); log=d.get\\(''''stdout'''',''''''''\\)+d.get\\(''''stderr'''',''''''''\\); [print\\(l\\) for l in log.split\\(''''\\\\n''''\\) if any\\(k in l.lower\\(\\) for k in [''''import'''',''''error'''',''''exception'''',''''fail'''',''''transaction'''']\\)]\")",
       "Bash(docker build:*)",
       "Bash(docker.exe build:*)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "mcp__5bba6bd4-95af-46fe-9820-af328732f205__resolve-library-id",
+      "mcp__5bba6bd4-95af-46fe-9820-af328732f205__query-docs"
     ]
   }
 }
