@@ -11,6 +11,7 @@ services:
     environment:
       TZ: Asia/Jerusalem
       NODE_ENV: production
+      NODE_OPTIONS: "--no-deprecation"
       LOG_LEVEL: debug
       # Cron schedule (Asia/Jerusalem). Remove or leave blank to run once and exit.
       SCHEDULE: "0 8 * * *"
@@ -19,9 +20,9 @@ services:
       # Per-bank timeout in minutes (also sets Puppeteer protocolTimeout)
       TIMEOUT_MINUTES: "10"
       # "false" = import goes to Sure review queue; "true" = auto-process
-      PUBLISH: "false"
+      PUBLISH: "true"
       # "true" = skip all Sure API writes (scrape and log only)
-      DRY_RUN: "true"
+      DRY_RUN: "false"
       # "true" = include bank-pending transactions
       IMPORT_PENDING: "false"
       # Puppeteer — use system Chromium installed in the image
