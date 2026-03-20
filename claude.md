@@ -80,8 +80,12 @@ israeli-sure-importer/
 6. IMPORT       POST /api/v1/imports (skip if DRY_RUN=true)
                 publish: PUBLISH env var ("false" = review queue, "true" = auto)
 
-7. POLL         GET /api/v1/imports/:id until status not pending/importing
+7. POLL         PUBLISH=false → single GET to confirm import was accepted (pending = success)
+                PUBLISH=true  → poll GET /api/v1/imports/:id until status not pending/importing
                 Statuses: pending | importing | complete | failed | revert_failed
+                Note: when publish=false, Sure places the import in the review queue and the
+                status stays "pending" permanently until the user confirms in the Sure UI.
+                "pending" is the expected terminal state for review-queue imports.
 
 8. STATE        On complete → write dedup keys to state.db (see key design below)
 
@@ -483,6 +487,9 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | S2 | Removed auto account creation — accounts must be created manually in Sure UI with correct type (Cash / Credit Card); UUID pasted into `config.json` |
 | L1 | `notifier.ts`: added `logger.info('Telegram notification sent')` and `logger.debug('skipped — no token or chat_id')` |
 | L2 | Log files use dated filename `importer-YYYY-MM-DD.log` with `importer.log` symlink to current day |
+| P1 | `postImport()`: import ID was nested — fixed `res.data.id` → `res.data.data.id` |
+| P2 | `pollImport()`: poll response was nested — added `SureImportResponse` interface, read `res.data.data` |
+| P3 | `pollImport()` + `index.ts`: when `PUBLISH=false`, `pending` IS the terminal state (review queue). Fixed: single status check instead of 3-min poll; `pending` treated as success when publish≠true |
 
 ### Known gaps
 

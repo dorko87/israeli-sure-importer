@@ -115,15 +115,32 @@ async function processTarget(
     const importId = await postImport({ accountId, csv, publish });
     logger.info(`[${target.name}] CSV posted → import_id=${importId}`);
 
-    // Poll until settled
-    const importResult = await pollImport(importId);
+    // When publish=false, Sure places the import in the review queue with status=pending.
+    // That is the terminal state — it won't change until the user confirms in the Sure UI.
+    // When publish=true, Sure auto-processes: pending → importing → complete.
+    let importResult;
+    if (publish !== 'true') {
+      // Single status check — confirm the import was accepted (not immediately failed)
+      importResult = await pollImport(importId, { maxAttempts: 1 });
+    } else {
+      // Full poll — wait for Sure to finish auto-processing
+      importResult = await pollImport(importId);
+    }
+
     const rowSummary = `${importResult.valid_rows_count ?? '?'}/${importResult.rows_count ?? '?'} rows`;
 
-    if (importResult.status === 'complete') {
-      logger.info(`[${target.name}] Import status: complete | ${rowSummary}` +
-        (publish === 'false' ? ' — review in Sure UI' : ''));
+    const isSuccess =
+      importResult.status === 'complete' ||
+      (publish !== 'true' && importResult.status === 'pending');
 
-      // Persist dedup keys only after confirmed success
+    if (isSuccess) {
+      if (importResult.status === 'complete') {
+        logger.info(`[${target.name}] Import status: complete | ${rowSummary}`);
+      } else {
+        logger.info(`[${target.name}] Import status: pending | ${rowSummary} — review in Sure UI`);
+      }
+
+      // Persist dedup keys — import was accepted by Sure (pending = in review queue)
       const dedupRecords: DedupRecord[] = txResult.rows.map(r => ({
         key: r.dedupKey,
         bank: target.companyId,
