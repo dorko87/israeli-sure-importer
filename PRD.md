@@ -63,9 +63,11 @@ Most important first.
   `chargedAmount === 0` before import; these carry no financial value and would
   only create noise in Sure
 
-- **Installment-aware notes** — installment context (`תשלום 3 מתוך 12`) is
-  preserved in the Sure `notes` field; the `name` field stays clean for Sure's
-  Rules engine to match against
+- **Installment-aware notes** — the `notes` field contains only information not
+  already in `name`: installment label (`תשלום 3 מתוך 12`) for installment
+  transactions, raw bank description for merchant-overridden transactions (audit
+  trail), empty for plain transactions where `name` already holds the description;
+  the `name` field stays clean for Sure's Rules engine to match against
 
 - **Merchant normalization** — `merchants.json` maps raw Hebrew/English bank
   descriptions to clean merchant names via fuzzy matching; raw description always
@@ -266,11 +268,11 @@ Scraper run
         └── filtered by: zero-amount check, state.db dedup check
         └── transformed into: CSV row (name, notes, date, amount)
               └── name ← MerchantOverride.name OR Transaction.description
-              └── notes ← installment label (if any) + " | " + Transaction.description
+              └── notes ← additional context only (see notes column rules in CLAUDE.md)
 
 CSV row[]
   └── posted as POST /api/v1/imports → ImportResult
-        └── on complete → DeduplicationRecord[] written to state.db
+        └── on complete or pending (review queue) → DeduplicationRecord[] written to state.db
 ```
 
 ---

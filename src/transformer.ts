@@ -18,6 +18,7 @@ export interface TransformedTransaction {
 export interface TransformResult {
   rows: TransformedTransaction[];
   zeroAmountSkipped: number;
+  futureSkipped: number;
   alreadySeenSkipped: number;
   pendingSkipped: number;
 }
@@ -34,19 +35,26 @@ function formatDate(isoDate: string): string {
 }
 
 /**
- * Builds the notes column value.
+ * Builds the notes column value. Notes should only contain information that is
+ * NOT already present in the name column — no redundant duplication.
  *
- * With installments:  "תשלום N מתוך M | <raw description>"
- * Without:            "<raw description>"
- *
- * The raw bank description is always preserved here regardless of merchant match.
+ * | Scenario                              | notes result                          |
+ * |---------------------------------------|---------------------------------------|
+ * | No installments, no merchant match    | ""  (empty — name is identical)       |
+ * | No installments, merchant match found | raw description (audit trail)         |
+ * | Installments, no merchant match       | "תשלום N מתוך M" (label only)         |
+ * | Installments, merchant match found    | "תשלום N מתוך M | raw description"    |
  */
-function buildNotes(tx: Transaction): string {
-  if (tx.installments) {
-    const label = `תשלום ${tx.installments.number} מתוך ${tx.installments.total}`;
-    return `${label} | ${tx.description}`;
-  }
-  return tx.description;
+function buildNotes(tx: Transaction, resolvedName: string): string {
+  const hasOverride = resolvedName !== tx.description;
+  const label = tx.installments
+    ? `תשלום ${tx.installments.number} מתוך ${tx.installments.total}`
+    : null;
+
+  if (label && hasOverride) return `${label} | ${tx.description}`;
+  if (label)                return label;           // description already in name
+  if (hasOverride)          return tx.description;  // raw for audit trail
+  return '';                                        // notes would duplicate name — leave empty
 }
 
 /**
@@ -80,9 +88,14 @@ export function transform(
   importPending: boolean
 ): TransformResult {
   let zeroAmountSkipped = 0;
+  let futureSkipped = 0;
   let alreadySeenSkipped = 0;
   let pendingSkipped = 0;
   const rows: TransformedTransaction[] = [];
+
+  // Today's date in Asia/Jerusalem as ISO string "YYYY-MM-DD" — used for future-date filter.
+  // 'sv-SE' locale reliably produces ISO format without any extra dependencies.
+  const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });
 
   for (const tx of txns) {
     // 1. Unconditional zero-amount filter
@@ -91,13 +104,21 @@ export function transform(
       continue;
     }
 
-    // 2. Pending filter
+    // 2. Future-date filter — drop transactions dated after today (Israel timezone).
+    // Credit cards (e.g. Max) return upcoming scheduled charges; these are not settled yet.
+    const txDateStr = tx.date.substring(0, 10); // "2026-03-31" from any ISO string
+    if (txDateStr > todayStr) {
+      futureSkipped++;
+      continue;
+    }
+
+    // 3. Pending filter
     if (tx.status === 'pending' && !importPending) {
       pendingSkipped++;
       continue;
     }
 
-    // 3. Deduplication
+    // 4. Deduplication
     const dedupKey = computeKey(tx, accountNumber);
     if (has(dedupKey)) {
       alreadySeenSkipped++;
@@ -106,7 +127,7 @@ export function transform(
 
     // Build CSV columns
     const name = findMatch(tx.description) ?? tx.description;
-    const notes = buildNotes(tx);
+    const notes = buildNotes(tx, name);
 
     rows.push({
       row: { date: formatDate(tx.date), amount: tx.chargedAmount, name, notes },
@@ -117,8 +138,11 @@ export function transform(
   if (zeroAmountSkipped > 0) {
     logger.debug(`[${bank}] Skipped ${zeroAmountSkipped} zero-amount transactions`);
   }
+  if (futureSkipped > 0) {
+    logger.debug(`[${bank}] Skipped ${futureSkipped} future-dated transactions`);
+  }
 
-  return { rows, zeroAmountSkipped, alreadySeenSkipped, pendingSkipped };
+  return { rows, zeroAmountSkipped, futureSkipped, alreadySeenSkipped, pendingSkipped };
 }
 
 /** Builds a CSV string from an array of rows. Header: date,amount,name,notes */

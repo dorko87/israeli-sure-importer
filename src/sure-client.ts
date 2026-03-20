@@ -68,10 +68,6 @@ export async function postImport(params: PostImportParams): Promise<string> {
   return res.data.data.id;
 }
 
-/**
- * Polls GET /api/v1/imports/:id until status is no longer pending or importing.
- * Throws if the import does not settle within POLL_MAX_ATTEMPTS × POLL_INTERVAL_MS.
- */
 interface SureImportResponse {
   data: {
     id: string;
@@ -84,33 +80,47 @@ interface SureImportResponse {
   };
 }
 
-export async function pollImport(
-  importId: string,
-  options?: { maxAttempts?: number }
-): Promise<ImportResult> {
-  const pending = new Set(['pending', 'importing']);
-  const maxAttempts = options?.maxAttempts ?? POLL_MAX_ATTEMPTS;
+function parseImportResponse(d: SureImportResponse['data']): ImportResult {
+  return {
+    id: d.id,
+    status: d.status,
+    rows_count: d.stats?.rows_count,
+    valid_rows_count: d.stats?.valid_rows_count,
+    error: d.error,
+  };
+}
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+/**
+ * Single GET — returns the import status immediately, unconditionally.
+ * Use this when PUBLISH=false (review queue): Sure keeps the import in
+ * "pending" permanently until the user confirms in the UI.
+ */
+export async function checkImport(importId: string): Promise<ImportResult> {
+  const res = await getClient().get<SureImportResponse>(`/api/v1/imports/${importId}`);
+  return parseImportResponse(res.data.data);
+}
+
+/**
+ * Polls GET /api/v1/imports/:id until status is no longer pending or importing.
+ * Use this when PUBLISH=true (auto-process): Sure transitions pending → importing → complete.
+ * Throws if the import does not settle within POLL_MAX_ATTEMPTS × POLL_INTERVAL_MS.
+ */
+export async function pollImport(importId: string): Promise<ImportResult> {
+  const pending = new Set(['pending', 'importing']);
+
+  for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
     const res = await getClient().get<SureImportResponse>(`/api/v1/imports/${importId}`);
-    const d = res.data.data;
-    const result: ImportResult = {
-      id: d.id,
-      status: d.status,
-      rows_count: d.stats?.rows_count,
-      valid_rows_count: d.stats?.valid_rows_count,
-      error: d.error,
-    };
+    const result = parseImportResponse(res.data.data);
 
     if (!pending.has(result.status)) {
       return result;
     }
 
-    logger.debug(`[import ${importId}] status=${result.status} — polling (attempt ${attempt + 1}/${maxAttempts})`);
+    logger.debug(`[import ${importId}] status=${result.status} — polling (attempt ${attempt + 1}/${POLL_MAX_ATTEMPTS})`);
     await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 
   throw new Error(
-    `Import ${importId} did not complete within ${maxAttempts * POLL_INTERVAL_MS / 1000}s`
+    `Import ${importId} did not complete within ${POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000}s`
   );
 }

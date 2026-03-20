@@ -65,29 +65,33 @@ israeli-sure-importer/
                   ACCOUNT_BLOCKED | TIMEOUT | GENERIC
 
 3. FILTER       Skip zero-amount transactions (chargedAmount === 0) — always, no config needed
-                Skip tx IDs already in state.db (deduplication — see key design below)
+                Skip future-dated transactions (date > today Asia/Jerusalem) — always, no config needed
+                  Prevents credit card upcoming charges (e.g. Max returns charges dated next month)
                 Skip pending tx if IMPORT_PENDING not set to "true"
+                Skip tx IDs already in state.db (deduplication — see key design below)
 
 4. TRANSFORM    Normalize amount/currency
                 Date: ISO "2026-03-15" → "15/03/2026" (DD/MM/YYYY for CSV)
                 merchants.json fuzzy lookup → clean name column (no installment info here)
-                notes column = installment label (if present) + " | " + raw bank description
-                  e.g. "תשלום 3 מתוך 12 | קאנטרי קריית טבעון"
-                  e.g. "קאנטרי קריית טבעון"  (no installments)
+                notes column — only content NOT already in name:
+                  no installments, no merchant match  →  "" (empty)
+                  no installments, merchant match      →  raw description (audit trail)
+                  installments, no merchant match      →  "תשלום N מתוך M" (label only)
+                  installments, merchant match         →  "תשלום N מתוך M | raw description"
 
 5. CSV BUILD    Columns: date, amount, name, notes
 
 6. IMPORT       POST /api/v1/imports (skip if DRY_RUN=true)
                 publish: PUBLISH env var ("false" = review queue, "true" = auto)
 
-7. POLL         PUBLISH=false → single GET to confirm import was accepted (pending = success)
-                PUBLISH=true  → poll GET /api/v1/imports/:id until status not pending/importing
+7. POLL         PUBLISH=false → checkImport() — single GET, returns status unconditionally
+                PUBLISH=true  → pollImport() — polls until status not pending/importing
                 Statuses: pending | importing | complete | failed | revert_failed
                 Note: when publish=false, Sure places the import in the review queue and the
                 status stays "pending" permanently until the user confirms in the Sure UI.
                 "pending" is the expected terminal state for review-queue imports.
 
-8. STATE        On complete → write dedup keys to state.db (see key design below)
+8. STATE        On complete or pending (review queue) → write dedup keys to state.db
 
 9. LOG          All steps → logs/importer.log (single file, Winston)
 
@@ -173,24 +177,32 @@ no match                    →  raw bank description       e.g. "קאנטרי �
 built-in Rules engine matches against for auto-categorization. Installment suffixes
 would break rule matching across the series.
 
-### `notes` column — full context
+### `notes` column — additional context only
+
+`notes` must only contain information that is **not already present in `name`**.
+If it would just repeat `name`, it is left empty.
+
+| Scenario | `name` | `notes` |
+|----------|--------|---------|
+| No installments, no merchant match | raw description | `""` (empty) |
+| No installments, merchant match found | clean name e.g. `"Rami Levy"` | raw description (audit trail) |
+| Installments, no merchant match | raw description | `"תשלום N מתוך M"` (label only) |
+| Installments, merchant match found | clean name | `"תשלום N מתוך M \| raw description"` |
+
+### Real examples from Sure UI
 
 ```
-has installments  →  "<label> | <raw description>"
-                      e.g. "תשלום 3 מתוך 12 | קאנטרי קריית טבעון"
+Regular transaction (no merchant match):
+  name:   עמלי
+  notes:  (empty)
 
-no installments   →  "<raw description>"
-                      e.g. "קאנטרי קריית טבעון"
-```
+Installment, no merchant match:
+  name:   קאנטרי קריית טבעון
+  notes:  תשלום 3 מתוך 12
 
-The raw bank description is **always** preserved in `notes` regardless of whether a
-merchant match was found. This is the audit trail — what the bank actually sent.
-
-### Real example from Sure UI
-
-```
-name:   קאנטרי קריית טבעון      ← clean, Rules engine matches this
-notes:  תשלום 3 מתוך 12 | קאנטרי קריית טבעון  ← full context visible in transaction detail
+Installment with merchant match (once merchants.json is populated):
+  name:   Country Club
+  notes:  תשלום 3 מתוך 12 | קאנטרי קריית טבעון
 ```
 
 ---
@@ -490,6 +502,9 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | P1 | `postImport()`: import ID was nested — fixed `res.data.id` → `res.data.data.id` |
 | P2 | `pollImport()`: poll response was nested — added `SureImportResponse` interface, read `res.data.data` |
 | P3 | `pollImport()` + `index.ts`: when `PUBLISH=false`, `pending` IS the terminal state (review queue). Fixed: single status check instead of 3-min poll; `pending` treated as success when publish≠true |
+| F1 | `transformer.ts`: added future-date filter — drops transactions where `date > today (Asia/Jerusalem)`; prevents credit card upcoming charges from being imported |
+| F2 | `transformer.ts`: `buildNotes()` now only emits content not already in `name`; non-installment transactions without merchant match get empty notes instead of a duplicate of the description |
+| F3 | `sure-client.ts` + `index.ts`: replaced broken `pollImport(id, { maxAttempts: 1 })` with new `checkImport()` function — single GET, returns result unconditionally, never throws; pipeline no longer fails on every run |
 
 ### Known gaps
 
