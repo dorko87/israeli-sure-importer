@@ -54,10 +54,20 @@ async function resolveAccountId(target: Target, autoCreate: boolean): Promise<st
 
 // --- Per-target pipeline ---
 
+interface TargetStats {
+  bank: string;
+  scraped: number;        // total txns from scraper across all accounts
+  newTx: number;          // rows sent to Sure (or would-be-sent in dry run)
+  dedupSkipped: number;
+  futureSkipped: number;
+  pendingSkipped: number;
+  error: boolean;
+}
+
 async function processTarget(
   target: Target,
   accountId: string
-): Promise<{ imported: number }> {
+): Promise<TargetStats> {
   // Load bank credentials from /run/secrets/
   const credentials: Record<string, string> = {};
   for (const [field, secretFile] of Object.entries(target.credentialSecrets)) {
@@ -96,6 +106,10 @@ async function processTarget(
   }
 
   let totalImported = 0;
+  let totalScraped = 0;
+  let totalDedup = 0;
+  let totalFuture = 0;
+  let totalPending = 0;
 
   for (const account of scrapeResult.accounts) {
     const txResult = transform(
@@ -110,6 +124,11 @@ async function processTarget(
       `[${target.name}] account=${account.accountNumber} | scraped=${account.txns.length}` +
       ` → ${newCount} new | dedup=${txResult.alreadySeenSkipped} zero=${txResult.zeroAmountSkipped} future=${txResult.futureSkipped} pending=${txResult.pendingSkipped}`
     );
+
+    totalScraped += account.txns.length;
+    totalDedup += txResult.alreadySeenSkipped;
+    totalFuture += txResult.futureSkipped;
+    totalPending += txResult.pendingSkipped;
 
     if (newCount === 0) continue;
 
@@ -200,7 +219,15 @@ async function processTarget(
     }
   }
 
-  return { imported: totalImported };
+  return {
+    bank: target.name,
+    scraped: totalScraped,
+    newTx: totalImported,
+    dedupSkipped: totalDedup,
+    futureSkipped: totalFuture,
+    pendingSkipped: totalPending,
+    error: false,
+  };
 }
 
 // --- Main run ---
@@ -254,6 +281,7 @@ async function run(): Promise<void> {
   }
 
   // Process each target sequentially — one bank failing does not stop the others
+  const allStats: TargetStats[] = [];
   let totalImported = 0;
   let successCount = 0;
   let failCount = 0;
@@ -262,31 +290,46 @@ async function run(): Promise<void> {
     const accountId = accountIds.get(target.name);
     if (!accountId) {
       failCount++;
+      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true });
       continue;
     }
 
     try {
-      const { imported } = await processTarget(target, accountId);
-      totalImported += imported;
+      const stats = await processTarget(target, accountId);
+      allStats.push(stats);
+      totalImported += stats.newTx;
       successCount++;
     } catch (err) {
       logger.error(`[${target.name}] Pipeline failed: ${String(err)}`);
       failCount++;
+      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true });
     }
   }
 
   // #12 — Back up dedup state after each run
   await backupDb();
 
-  const summary =
+  // Build per-bank summary lines for Telegram
+  const bankLines = allStats.map(s => {
+    if (s.error) return `❌ ${s.bank} — scrape failed`;
+    const parts: string[] = [`${s.scraped} scraped → ${s.newTx} new`];
+    if (s.dedupSkipped > 0)   parts.push(`${s.dedupSkipped} dedup`);
+    if (s.pendingSkipped > 0) parts.push(`${s.pendingSkipped} pending skipped`);
+    if (s.futureSkipped > 0)  parts.push(`${s.futureSkipped} future skipped`);
+    return `✅ ${s.bank} — ${parts.join(' | ')}`;
+  });
+
+  const header =
     `Run complete | banks=${config.targets.length} ok=${successCount} fail=${failCount}` +
     ` | imported=${totalImported} tx` +
     (dryRun ? ' [DRY RUN]' : '');
 
-  logger.info(summary);
+  const fullSummary = [header, ...bankLines].join('\n');
+
+  logger.info(header);
 
   if (!dryRun && successCount > 0 && failCount === 0) {
-    await notifySuccess(summary);
+    await notifySuccess(fullSummary);
   } else if (dryRun) {
     logger.debug('Skipping success notification — dry run');
   }
