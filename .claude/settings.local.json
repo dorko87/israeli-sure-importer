@@ -18,7 +18,8 @@
       "Bash(git commit:*)",
       "Bash(grep -n \"try.*catch\\\\|catch.*err\" src/*.ts)",
       "Bash(grep -E '\"\"fs\"\"|\"\"node\"\"' package.json)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); envs=d.get\\(''''env'''',{}\\); [print\\(k\\) for k in envs if ''''FORGEJO'''' in k or ''''GIT'''' in k or ''''TOKEN'''' in k]\")"
     ]
   }
 }
