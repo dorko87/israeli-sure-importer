@@ -69,7 +69,7 @@ This means the container will read `/run/secrets/leumi_username` and `/run/secre
 | `massad` | `username`, `password` |
 | `union` | `username`, `password` |
 | `yahav` | `username`, `password`, `nationalId` |
-| `visacal` | `username`, `password` |
+| `visaCal` | `username`, `password` |
 | `max` | `username`, `password` |
 | `isracard` | `id`, `card6Digits`, `password` |
 | `amex` | `username`, `card6Digits`, `password` |

@@ -146,7 +146,7 @@ Cron fires at configured time (e.g. 08:00 Asia/Jerusalem)
   → for each target in config.json (in sequence):
       → loads browser profile from BROWSER_DATA_DIR/<companyId>/
       → scrapes bank with per-bank TIMEOUT_MINUTES limit
-      → filters: drops zero-amount tx, drops already-seen tx (state.db check)
+      → filters: drops zero-amount tx, drops future-dated tx, drops already-seen tx (state.db check)
       → transforms: formats dates, applies merchants.json, builds notes column
       → generates CSV string
       → posts to POST /api/v1/imports with publish=true

@@ -12,7 +12,7 @@ no cloud, no third-party services.
 ## How It Works
 
 1. Scrapes your configured bank and credit card accounts using headless Chromium
-2. Filters out zero-amount transactions and already-imported transactions
+2. Filters out zero-amount transactions, future-dated transactions, and already-imported transactions
 3. Generates a CSV from new transactions only
 4. Posts the CSV to Sure's Import API (`POST /api/v1/imports`)
 5. When `PUBLISH=false` (default), the import lands in Sure's review queue — you
@@ -155,6 +155,7 @@ Contains only structure — no credentials, no API keys. Safe to commit.
 | `DRY_RUN` | `"false"` | `"true"` = scrape only, no uploads to Sure |
 | `IMPORT_PENDING` | `"false"` | `"true"` = include bank-pending transactions |
 | `BROWSER_DATA_DIR` | `/app/browser-data` | Per-bank browser profile path. Remove to use fresh session every run. |
+| `MERCHANTS_PATH` | `/app/logs/merchants.json` | Override path to `merchants.json`. |
 | `NOTIFY_ON_LOGIN_FAIL` | `"true"` | Telegram alert on bank login failure |
 | `NOTIFY_ON_SYNC_FAIL` | `"true"` | Telegram alert when entire sync fails |
 | `NOTIFY_ERROR_THRESHOLD` | `0` | Telegram alert when failed tx count ≥ this |
