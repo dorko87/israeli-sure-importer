@@ -1,5 +1,6 @@
 import { createScraper, CompanyTypes } from 'israeli-bank-scrapers';
 import * as path from 'path';
+import * as fs from 'fs';
 import type { ScrapeResult, ScraperAccount } from './types';
 import logger from './logger';
 
@@ -33,6 +34,18 @@ export async function scrapeTarget(options: ScrapeTargetOptions): Promise<Scrape
   const timeoutMs = TIMEOUT_MINUTES * 60 * 1000;
   const startDate = buildStartDate();
   const browserDataDir = path.join(BROWSER_DATA_DIR, options.companyId);
+
+  // #11 — Remove stale SingletonLock before launching the browser.
+  // Left behind when the container is killed mid-scrape; Chromium refuses to start if present.
+  const lockFile = path.join(browserDataDir, 'SingletonLock');
+  if (fs.existsSync(lockFile)) {
+    try {
+      fs.rmSync(lockFile);
+      logger.warn(`[${options.name}] Removed stale SingletonLock — previous run may have been killed`);
+    } catch (err) {
+      logger.warn(`[${options.name}] Could not remove SingletonLock: ${String(err)}`);
+    }
+  }
 
   const scraperOptions = {
     companyId: options.companyId as CompanyTypes,
