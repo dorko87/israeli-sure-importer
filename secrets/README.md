@@ -16,14 +16,6 @@ This directory holds credential files for `israeli-banks-sure-importer`.
 
 ## How to create them
 
-Use the interactive wizard:
-
-```bash
-bash setup.sh
-```
-
-Or create manually:
-
 ```bash
 # Format: printf '%s' "VALUE" > secrets/<filename> && chmod 400 secrets/<filename>
 printf '%s' "your-sure-api-key" > secrets/sure_api_key && chmod 400 secrets/sure_api_key
