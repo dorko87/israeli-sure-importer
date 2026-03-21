@@ -30,6 +30,8 @@ services:
       PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
       # Browser profile directory — persists 2FA device recognition per bank
       BROWSER_DATA_DIR: /app/browser-data
+      # Optional: override merchants.json location (default: /app/logs/merchants.json)
+      # MERCHANTS_PATH: /app/logs/merchants.json
       # Secret file paths (mounted read-only from secrets/)
       SURE_API_KEY_FILE: /run/secrets/sure_api_key
       TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
