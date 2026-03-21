@@ -176,8 +176,8 @@ User wants to sync immediately without waiting for next scheduled run
 User has modified merchants.json or config.json and wants to verify output
   → runs: docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
   → full pipeline runs: scrape → filter → transform → CSV build
-  → log shows "[DRY RUN] Would import N transactions" with full detail
-  → log shows the CSV content that would be sent to Sure
+  → CSV written to /app/logs/dry-run-<companyId>-<timestamp>.csv for inspection
+  → log shows "[DRY RUN] Would import N transactions" per bank
   → NO calls made to Sure API
   → state.db is NOT updated
   → user inspects log, confirms output looks correct
@@ -312,9 +312,9 @@ These are explicitly out of scope. Do not implement them.
 - **No screenshot capture** — no Chromium screenshots are saved on failure or
   success. Debugging is done via the unified log file at `debug` level.
 
-- **No CSV file output** — the generated CSV is built in memory and posted directly
-  to Sure's API. It is not written to disk for manual inspection (use `--dry-run`
-  to see the content in the log instead).
+- **No CSV file output in production** — in normal operation the generated CSV is built in memory
+  and posted directly to Sure's API. In `--dry-run` mode, the CSV IS written to
+  `/app/logs/dry-run-<companyId>-<timestamp>.csv` for manual inspection.
 
 - **No balance reconciliation** — the bridge imports transactions only. It does not
   read or update account balances, create reconciliation entries, or adjust Sure's
