@@ -10,7 +10,7 @@ import {
   pollImport,
   checkImport,
 } from './sure-client';
-import { initNotifier, notifyLoginFail, notifySyncFail, notifySuccess, notifyErrorThreshold } from './notifier';
+import { initNotifier, notifyLoginFail, notifySyncFail, notifySuccess, notifyErrorThreshold, notifySlowScrape } from './notifier';
 import { scrapeTarget } from './scraper';
 import { transform, buildCsv } from './transformer';
 import { insertMany, backupDb, type DedupRecord } from './state';
@@ -62,12 +62,20 @@ async function processTarget(
     credentials[field] = readSecretFile(secretFile);
   }
 
-  // Scrape
+  // Scrape — #19: log elapsed time per bank, #13: alert if approaching timeout
+  const scrapeStart = Date.now();
   const scrapeResult = await scrapeTarget({
     companyId: target.companyId,
     credentials,
     name: target.name,
   });
+  const elapsedMs = Date.now() - scrapeStart;
+  const elapsedSecs = Math.round(elapsedMs / 1000);
+  const limitMs = parseInt(process.env.TIMEOUT_MINUTES ?? '10', 10) * 60 * 1000;
+  logger.info(`[${target.name}] Scraped in ${elapsedSecs}s`);
+  if (elapsedMs > limitMs * 0.8) {
+    await notifySlowScrape(target.name, elapsedSecs, Math.round(limitMs / 1000));
+  }
 
   if (!scrapeResult.success) {
     const isLoginError = ['INVALID_PASSWORD', 'CHANGE_PASSWORD', 'ACCOUNT_BLOCKED'].includes(
