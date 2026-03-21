@@ -505,7 +505,7 @@ docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
 
 ## Current Status
 
-*Last updated: 2026-03-19*
+*Last updated: 2026-03-21*
 
 ### Live and verified
 
@@ -521,6 +521,7 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | `src/merchants.ts` | ✅ Complete |
 | `src/sure-client.ts` | ✅ Complete |
 | `src/state.ts` | ✅ Complete |
+| `src/history.ts` | ✅ Complete |
 | `src/notifier.ts` | ✅ Complete |
 | `src/logger.ts` | ✅ Complete |
 | `Dockerfile` | ✅ Complete |
@@ -552,6 +553,15 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | F1 | `transformer.ts`: added future-date filter — drops transactions where `date > today (Asia/Jerusalem)`; prevents credit card upcoming charges from being imported |
 | F2 | `transformer.ts`: `buildNotes()` now only emits content not already in `name`; non-installment transactions without merchant match get empty notes instead of a duplicate of the description |
 | F3 | `sure-client.ts` + `index.ts`: replaced broken `pollImport(id, { maxAttempts: 1 })` with new `checkImport()` function — single GET, returns result unconditionally, never throws; pipeline no longer fails on every run |
+| R1 | `scraper.ts`: remove stale `SingletonLock` file before each browser launch — prevents hung scraper on container restart |
+| R2 | `scraper.ts` + `index.ts`: per-bank elapsed time logged; `notifySlowScrape()` fires when elapsed > 80% of `TIMEOUT_MINUTES` |
+| R3 | `state.ts` + `index.ts`: `backupDb()` runs after each full sync — copies `state.db` → `state.db.bak` using better-sqlite3 online backup API |
+| R4 | `src/history.ts` (new file): append-only JSONL import history written to `/app/logs/import_history.jsonl` after every attempt |
+| R5 | `notifier.ts` + `index.ts`: richer Telegram run-summary — per-bank scraped/new/failed counts; mixed-success runs show ⚠️ instead of ✅ |
+| R6 | `index.ts` dry-run: CSV written to `/app/logs/dry-run-<companyId>-<timestamp>.csv` for manual inspection |
+| R7 | `merchants.ts`: file moved to `logs/` volume (runtime path `/app/logs/merchants.json`); env var `MERCHANTS_PATH` allows override; cache nulled at start of each `run()` so edits take effect without restart |
+| B1 | `index.ts` `run()` catch block: added `notifySyncFail()` call — Sure API failures (postImport / pollImport) now trigger Telegram alert, symmetric with scrape failures |
+| B2 | `transformer.ts` JSDoc: fixed filter list to include future-date filter as step 2 (was missing entirely); renumbered pending/dedup to steps 3/4 |
 
 ### Known gaps
 
