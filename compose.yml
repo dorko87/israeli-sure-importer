@@ -43,8 +43,6 @@ services:
     volumes:
       # Config (read-only — no credentials inside)
       - /mnt/user/appdata/sure/israeli-sure-importer/config.json:/app/config.json:ro
-      # Merchant name overrides (read-only — safe to edit directly on Unraid)
-      - /mnt/user/appdata/sure/israeli-sure-importer/merchants.json:/app/merchants.json:ro
       # Secrets (read-only — one file per credential)
       - /mnt/user/appdata/sure/israeli-sure-importer/secrets:/run/secrets:ro
       # State (deduplication SQLite DB)
