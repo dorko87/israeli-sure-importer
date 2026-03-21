@@ -97,13 +97,13 @@ israeli-sure-importer/
 
 8. STATE        On complete or pending (review queue) → write dedup keys to state.db
 
-8. HISTORY      Append one JSONL line to /app/logs/import_history.jsonl (every attempt)
+9. HISTORY      Append one JSONL line to /app/logs/import_history.jsonl (every attempt)
 
-9. BACKUP       state.db → state.db.bak after each run (better-sqlite3 backup API)
+10. BACKUP      state.db → state.db.bak after each run (better-sqlite3 backup API)
 
-10. LOG         All steps → logs/importer.log (single file, Winston)
+11. LOG         All steps → logs/importer.log (single file, Winston)
 
-11. NOTIFY      Telegram if: login fail / sync fail / errors ≥ NOTIFY_ERROR_THRESHOLD
+12. NOTIFY      Telegram if: login fail / sync fail / errors ≥ NOTIFY_ERROR_THRESHOLD
 ```
 
 ---
