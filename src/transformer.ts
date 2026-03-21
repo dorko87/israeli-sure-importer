@@ -74,8 +74,9 @@ function csvEscape(val: string | number): string {
  *
  * Filters applied (in order):
  *   1. Zero-amount — unconditionally dropped (chargedAmount === 0)
- *   2. Pending — dropped unless importPending is true
- *   3. Deduplication — dropped if key already in state.db
+ *   2. Future-date — unconditionally dropped (date > today in Asia/Jerusalem)
+ *   3. Pending — dropped unless importPending is true
+ *   4. Deduplication — dropped if key already in state.db
  *
  * Output rows use:
  *   name  = merchants.json match OR raw description (never includes installment info)

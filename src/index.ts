@@ -306,7 +306,9 @@ async function run(): Promise<void> {
       totalImported += stats.newTx;
       successCount++;
     } catch (err) {
-      logger.error(`[${target.name}] Pipeline failed: ${String(err)}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.error(`[${target.name}] Pipeline failed: ${errMsg}`);
+      await notifySyncFail(target.name, errMsg);
       failCount++;
       allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true, importFailed: false });
     }
