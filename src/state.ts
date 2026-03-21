@@ -99,3 +99,16 @@ export async function backupDb(): Promise<void> {
     logger.warn(`State DB backup failed: ${String(err)}`);
   }
 }
+
+/**
+ * Closes the SQLite connection cleanly.
+ * Call during graceful shutdown — after backupDb() if a backup is desired.
+ * Safe to call if the DB was never opened.
+ */
+export function closeDb(): void {
+  if (db) {
+    db.close();
+    db = null;
+    logger.debug('State DB closed');
+  }
+}
