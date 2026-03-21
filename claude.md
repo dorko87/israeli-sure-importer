@@ -479,7 +479,7 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | `Dockerfile` | ✅ Complete |
 | `compose.yml` | ✅ Complete |
 | `config.example.json` | ✅ Complete |
-| `merchants.json` | ✅ Empty array — ready to populate |
+| `merchants.json` | ✅ Runtime file at `/app/logs/merchants.json` (host: `logs/merchants.json`) — auto-reloaded each run |
 | `secrets/README.md` | ✅ Complete |
 | `README.md` | ✅ Complete |
 
