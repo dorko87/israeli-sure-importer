@@ -13,6 +13,7 @@ import {
 } from './sure-client';
 import { initNotifier, notifyLoginFail, notifySyncFail, notifySuccess, notifyErrorThreshold, notifySlowScrape } from './notifier';
 import { scrapeTarget } from './scraper';
+import { reloadMerchants } from './merchants';
 import { transform, buildCsv } from './transformer';
 import { insertMany, backupDb, type DedupRecord } from './state';
 import { appendHistory } from './history';
@@ -238,6 +239,7 @@ async function processTarget(
 
 async function run(): Promise<void> {
   logger.info('=== Run started ===');
+  reloadMerchants(); // #9 — re-read merchants.json on each run; picks up edits without restart
   if (dryRun) logger.info('[DRY RUN] mode — no Sure API writes will be made');
 
   let config;

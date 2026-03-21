@@ -50,7 +50,6 @@ WORKDIR /app
 
 COPY --from=builder --chown=node:node /build/dist/ ./dist/
 COPY --from=builder --chown=node:node /build/node_modules/ ./node_modules/
-COPY --chown=node:node merchants.json ./
 
 # Runtime directories are bind-mounted from the host; create placeholders so
 # the container starts cleanly even if the host paths are pre-created.
