@@ -350,6 +350,27 @@ async function run(): Promise<void> {
   logger.info('=== Run finished ===');
 }
 
+// --- Graceful shutdown ---
+
+function handleShutdown(signal: string): void {
+  if (shuttingDown) return; // prevent double-invocation (SIGTERM + SIGINT racing)
+  shuttingDown = true;
+
+  if (cronTask) {
+    cronTask.stop();
+    cronTask = null;
+  }
+
+  closeDb();
+  logger.info(`${signal} received — scheduler stopped, database closed, shutting down`);
+
+  // Let Winston file transports drain before exit.
+  // 1000ms is sufficient — log volume at shutdown is low.
+  // (The run-once path uses 3000ms as a Puppeteer handle guard; not needed here.)
+  process.exitCode = 0;
+  setTimeout(() => process.exit(0), 1000).unref();
+}
+
 // --- Entry point ---
 
 async function main(): Promise<void> {
@@ -370,6 +391,9 @@ async function main(): Promise<void> {
   }, { timezone: 'Asia/Jerusalem' });
   logger.info('Scheduler started — waiting for next trigger');
 }
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('SIGINT',  () => handleShutdown('SIGINT'));
 
 main().catch(err => {
   console.error('Fatal error:', err);
