@@ -53,3 +53,19 @@ export async function notifySuccess(summary: string): Promise<void> {
   if (!NOTIFY_ON_SUCCESS) return;
   await send(`✅ ${summary}`);
 }
+
+/**
+ * Sends a Telegram warning when a scrape takes more than 80% of the timeout limit.
+ * Always fires — no gate env var.
+ */
+export async function notifySlowScrape(
+  bank: string,
+  elapsedSecs: number,
+  limitSecs: number
+): Promise<void> {
+  const pct = Math.round((elapsedSecs / limitSecs) * 100);
+  await send(
+    `⏱ <b>Slow scrape warning</b>\n\nBank: <b>${bank}</b>\nDuration: ${elapsedSecs}s` +
+    ` (${pct}% of ${limitSecs}s limit)\n\nCompleted OK — investigate if this continues.`
+  );
+}
