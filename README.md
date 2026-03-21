@@ -163,7 +163,7 @@ Contains only structure — no credentials, no API keys. Safe to commit.
 ### `merchants.json`
 
 Optional merchant name overrides. Maps raw bank description strings to clean names
-using fuzzy (contains) matching. Safe to commit.
+using fuzzy (contains) matching.
 
 ```json
 [
@@ -173,6 +173,18 @@ using fuzzy (contains) matching. Safe to commit.
   { "pattern": "HOT MOBILE", "name": "Hot Mobile" }
 ]
 ```
+
+**Runtime location:** `/mnt/user/appdata/sure/israeli-sure-importer/logs/merchants.json`
+(served by the existing logs volume mount — no separate Docker mount needed)
+
+Copy the repo's `merchants.json` to that path on Unraid before starting the container:
+```bash
+cp /path/to/repo/israeli-sure-importer/merchants.json \
+   /mnt/user/appdata/sure/israeli-sure-importer/logs/merchants.json
+```
+
+The file is re-read on every scheduled run — edit it directly on Unraid and changes
+take effect on the next run without a container restart.
 
 The raw bank description is always preserved in the `notes` field in Sure regardless
 of whether a merchant match is found.
