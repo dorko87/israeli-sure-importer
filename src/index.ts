@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { schedule } from 'node-cron';
+import { schedule, type ScheduledTask } from 'node-cron';
 import logger from './logger';
 import { loadConfig, type Target } from './config';
 import { loadAppSecrets, readSecretFile } from './secrets';
@@ -15,7 +15,7 @@ import { initNotifier, notifyLoginFail, notifySyncFail, notifySuccess, notifyErr
 import { scrapeTarget } from './scraper';
 import { reloadMerchants } from './merchants';
 import { transform, buildCsv } from './transformer';
-import { insertMany, backupDb, type DedupRecord } from './state';
+import { insertMany, backupDb, closeDb, type DedupRecord } from './state';
 import { appendHistory } from './history';
 
 // --- CLI flags ---
@@ -25,6 +25,10 @@ const dryRun = args.includes('--dry-run') || process.env.DRY_RUN === 'true';
 const importPending = process.env.IMPORT_PENDING === 'true';
 const publish = process.env.PUBLISH ?? 'false';
 const scheduleExpr = process.env.SCHEDULE;
+
+// --- Graceful shutdown state ---
+let shuttingDown = false;
+let cronTask: ScheduledTask | null = null;
 
 // --- Account resolution ---
 
