@@ -62,6 +62,7 @@ interface TargetStats {
   futureSkipped: number;
   pendingSkipped: number;
   error: boolean;
+  importFailed: boolean;
 }
 
 async function processTarget(
@@ -110,6 +111,7 @@ async function processTarget(
   let totalDedup = 0;
   let totalFuture = 0;
   let totalPending = 0;
+  let hasImportFailure = false;
 
   for (const account of scrapeResult.accounts) {
     const txResult = transform(
@@ -207,6 +209,7 @@ async function processTarget(
       const errMsg = importResult.error ?? importResult.status;
       logger.error(`[${target.name}] Import failed | status=${importResult.status} | ${errMsg}`);
       await notifySyncFail(target.name, errMsg);
+      hasImportFailure = true;
       appendHistory({
         timestamp: new Date().toISOString(),
         bank: target.name,
@@ -227,6 +230,7 @@ async function processTarget(
     futureSkipped: totalFuture,
     pendingSkipped: totalPending,
     error: false,
+    importFailed: hasImportFailure,
   };
 }
 
@@ -290,7 +294,7 @@ async function run(): Promise<void> {
     const accountId = accountIds.get(target.name);
     if (!accountId) {
       failCount++;
-      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true });
+      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true, importFailed: false });
       continue;
     }
 
@@ -302,7 +306,7 @@ async function run(): Promise<void> {
     } catch (err) {
       logger.error(`[${target.name}] Pipeline failed: ${String(err)}`);
       failCount++;
-      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true });
+      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true, importFailed: false });
     }
   }
 
@@ -312,6 +316,7 @@ async function run(): Promise<void> {
   // Build per-bank summary lines for Telegram
   const bankLines = allStats.map(s => {
     if (s.error) return `❌ ${s.bank} — scrape failed`;
+    if (s.importFailed) return `⚠️ ${s.bank} — import failed`;
     const parts: string[] = [`${s.scraped} scraped → ${s.newTx} new`];
     if (s.dedupSkipped > 0)   parts.push(`${s.dedupSkipped} dedup`);
     if (s.pendingSkipped > 0) parts.push(`${s.pendingSkipped} pending skipped`);
@@ -328,7 +333,7 @@ async function run(): Promise<void> {
 
   logger.info(header);
 
-  if (!dryRun && successCount > 0 && failCount === 0) {
+  if (!dryRun && successCount > 0) {
     await notifySuccess(fullSummary);
   } else if (dryRun) {
     logger.debug('Skipping success notification — dry run');
