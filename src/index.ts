@@ -13,7 +13,7 @@ import {
 import { initNotifier, notifyLoginFail, notifySyncFail, notifySuccess, notifyErrorThreshold } from './notifier';
 import { scrapeTarget } from './scraper';
 import { transform, buildCsv } from './transformer';
-import { insertMany, type DedupRecord } from './state';
+import { insertMany, backupDb, type DedupRecord } from './state';
 
 // --- CLI flags ---
 const args = process.argv.slice(2);
@@ -227,6 +227,9 @@ async function run(): Promise<void> {
       failCount++;
     }
   }
+
+  // #12 — Back up dedup state after each run
+  await backupDb();
 
   const summary =
     `Run complete | banks=${config.targets.length} ok=${successCount} fail=${failCount}` +

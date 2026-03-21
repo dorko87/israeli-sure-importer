@@ -84,3 +84,18 @@ export function insertMany(records: DedupRecord[]): void {
   insertAll(records);
   logger.debug(`State: inserted ${records.length} dedup keys`);
 }
+
+/**
+ * Backs up state.db to state.db.bak using better-sqlite3's online backup API.
+ * Single backup file — overwritten on every run. One recovery point.
+ * Wrapped in try/catch — backup failure must never crash the pipeline.
+ */
+export async function backupDb(): Promise<void> {
+  const backupPath = `${DB_PATH}.bak`;
+  try {
+    await getDb().backup(backupPath);
+    logger.info(`State DB backed up → ${backupPath}`);
+  } catch (err) {
+    logger.warn(`State DB backup failed: ${String(err)}`);
+  }
+}
