@@ -15,6 +15,7 @@ import { initNotifier, notifyLoginFail, notifySyncFail, notifySuccess, notifyErr
 import { scrapeTarget } from './scraper';
 import { transform, buildCsv } from './transformer';
 import { insertMany, backupDb, type DedupRecord } from './state';
+import { appendHistory } from './history';
 
 // --- CLI flags ---
 const args = process.argv.slice(2);
@@ -126,12 +127,22 @@ async function processTarget(
       } catch (err) {
         logger.warn(`[${target.name}] Dry run: failed to write CSV: ${String(err)}`);
       }
+      appendHistory({
+        timestamp: new Date().toISOString(),
+        bank: target.name,
+        companyId: target.companyId,
+        importId: null,
+        rowsSent: newCount,
+        status: 'dry_run',
+        dryRun: true,
+      });
       totalImported += newCount;
       continue;
     }
 
     // Submit CSV to Sure
-    const importId = await postImport({ accountId, csv, publish });
+    let importId: string | null = null;
+    importId = await postImport({ accountId, csv, publish });
     logger.info(`[${target.name}] CSV posted → import_id=${importId}`);
 
     // When publish=false, Sure places the import in the review queue with status=pending.
@@ -163,11 +174,29 @@ async function processTarget(
       insertMany(dedupRecords);
       const failedRows = (importResult.rows_count ?? 0) - (importResult.valid_rows_count ?? 0);
       if (failedRows > 0) await notifyErrorThreshold(target.name, failedRows);
+      appendHistory({
+        timestamp: new Date().toISOString(),
+        bank: target.name,
+        companyId: target.companyId,
+        importId,
+        rowsSent: newCount,
+        status: importResult.status,
+        dryRun: false,
+      });
       totalImported += newCount;
     } else {
       const errMsg = importResult.error ?? importResult.status;
       logger.error(`[${target.name}] Import failed | status=${importResult.status} | ${errMsg}`);
       await notifySyncFail(target.name, errMsg);
+      appendHistory({
+        timestamp: new Date().toISOString(),
+        bank: target.name,
+        companyId: target.companyId,
+        importId: importId ?? null,
+        rowsSent: newCount,
+        status: 'failed',
+        dryRun: false,
+      });
     }
   }
 
