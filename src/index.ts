@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import { schedule } from 'node-cron';
 import logger from './logger';
 import { loadConfig, type Target } from './config';
@@ -116,6 +117,15 @@ async function processTarget(
     if (dryRun) {
       logger.info(`[${target.name}] [DRY RUN] Would import ${newCount} transactions`);
       logger.debug(`[${target.name}] [DRY RUN] CSV:\n${csv}`);
+      // #17 — Write CSV to logs volume for inspection
+      const ts = new Date().toISOString().replace(/:/g, '-').substring(0, 19); // "2026-03-21T08-00-14"
+      const csvPath = `/app/logs/dry-run-${target.companyId}-${ts}.csv`;
+      try {
+        fs.writeFileSync(csvPath, csv, 'utf-8');
+        logger.info(`[${target.name}] Dry run: CSV written to ${csvPath}`);
+      } catch (err) {
+        logger.warn(`[${target.name}] Dry run: failed to write CSV: ${String(err)}`);
+      }
       totalImported += newCount;
       continue;
     }
