@@ -3,13 +3,13 @@
   "configurations": [
     {
       "name": "TypeScript Watch",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/typescript/bin/tsc", "--watch"],
       "port": 0
     },
     {
       "name": "Run Importer",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "npm.cmd",
       "runtimeArgs": ["start"],
       "port": 0
     },

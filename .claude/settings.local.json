@@ -11,7 +11,14 @@
       "Bash(docker.exe build:*)",
       "Bash(node -e \":*)",
       "mcp__5bba6bd4-95af-46fe-9820-af328732f205__resolve-library-id",
-      "mcp__5bba6bd4-95af-46fe-9820-af328732f205__query-docs"
+      "mcp__5bba6bd4-95af-46fe-9820-af328732f205__query-docs",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(grep -n \"try.*catch\\\\|catch.*err\" src/*.ts)",
+      "Bash(grep -E '\"\"fs\"\"|\"\"node\"\"' package.json)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
