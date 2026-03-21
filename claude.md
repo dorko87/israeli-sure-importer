@@ -35,6 +35,7 @@ israeli-sure-importer/
 │   ├── merchants.ts      ← loads merchants.json, fuzzy match logic
 │   ├── sure-client.ts    ← Sure API calls (accounts, imports, polling)
 │   ├── state.ts          ← SQLite deduplication state (better-sqlite3)
+│   ├── history.ts        ← append-only JSONL import history log
 │   ├── notifier.ts       ← Telegram alerts
 │   └── logger.ts         ← Winston logger, redaction, rotation
 ├── config.example.json   ← template — safe to commit, zero credentials
@@ -61,6 +62,8 @@ israeli-sure-importer/
 2. SCRAPE       israeli-bank-scrapers per target in config.json
                 Timeout: TIMEOUT_MINUTES (sets both job timeout + defaultTimeout)
                 Browser profile: BROWSER_DATA_DIR/<companyId>/
+                Remove stale SingletonLock if present (prevents hung browser restart)
+                Per-bank elapsed time logged; Telegram alert if elapsed > 80% of TIMEOUT_MINUTES
                 Error types from scraper: INVALID_PASSWORD | CHANGE_PASSWORD |
                   ACCOUNT_BLOCKED | TIMEOUT | GENERIC
 
@@ -83,6 +86,7 @@ israeli-sure-importer/
 
 6. IMPORT       POST /api/v1/imports (skip if DRY_RUN=true)
                 publish: PUBLISH env var ("false" = review queue, "true" = auto)
+                DRY_RUN: write CSV to /app/logs/dry-run-<companyId>-<timestamp>.csv instead
 
 7. POLL         PUBLISH=false → checkImport() — single GET, returns status unconditionally
                 PUBLISH=true  → pollImport() — polls until status not pending/importing
@@ -93,9 +97,13 @@ israeli-sure-importer/
 
 8. STATE        On complete or pending (review queue) → write dedup keys to state.db
 
-9. LOG          All steps → logs/importer.log (single file, Winston)
+8. HISTORY      Append one JSONL line to /app/logs/import_history.jsonl (every attempt)
 
-10. NOTIFY      Telegram if: login fail / sync fail / errors ≥ NOTIFY_ERROR_THRESHOLD
+9. BACKUP       state.db → state.db.bak after each run (better-sqlite3 backup API)
+
+10. LOG         All steps → logs/importer.log (single file, Winston)
+
+11. NOTIFY      Telegram if: login fail / sync fail / errors ≥ NOTIFY_ERROR_THRESHOLD
 ```
 
 ---
@@ -300,6 +308,7 @@ All set in `compose.yml`. Never in `config.json`.
 | `PUPPETEER_EXECUTABLE_PATH` | string | `/usr/bin/chromium` |
 | `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` | string | `"true"` |
 | `BROWSER_DATA_DIR` | string | `/app/browser-data` — per-bank profile dir |
+| `MERCHANTS_PATH` | string | Override merchants.json path (default: `/app/logs/merchants.json`) |
 | `SURE_API_KEY_FILE` | string | Path to Sure API key secret file |
 | `TELEGRAM_BOT_TOKEN_FILE` | string | Path to Telegram bot token secret file |
 | `TELEGRAM_CHAT_ID` | string | Telegram chat ID (not sensitive) |
@@ -427,7 +436,7 @@ docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
 2. **No credentials in environment variables** — use secret files via `*_FILE` pattern.
 3. **No credentials in logs** — redact at the logger level.
 4. **No inbound ports** — compose.yml has no `ports:` entry.
-5. **Single log file** — `logs/importer.log` only. No per-bank files, no screenshots.
+5. **logs/ directory contents** — `logs/importer.log` for all pipeline output. Additionally: `dry-run-<companyId>-<timestamp>.csv` (dry-run only), `import_history.jsonl` (every run), `merchants.json` (runtime config). No per-bank log files, no screenshots.
 6. **Import API only** — use `POST /api/v1/imports`, not `POST /api/v1/transactions`.
 7. **date_format is Ruby strftime** — `%d/%m/%Y`, not `DD/MM/YYYY`.
 8. **Timezone** — always `Asia/Jerusalem`. The scraper library requires this.
@@ -436,6 +445,44 @@ docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
 11. **Zero-amount filter is unconditional** — never import transactions where `chargedAmount === 0`.
 12. **Installment number in dedup key** — required to distinguish monthly installment payments.
 13. **name column has no installment info** — installment label belongs in `notes` only.
+
+---
+
+## Security Rules — Do Not Violate
+
+### Credentials
+
+1. **Never log credential values** — not even at `debug` level; redaction in `src/logger.ts` is defense-in-depth, not the primary control
+2. **Never write credentials to `state.db`, CSV output, or any file** — secrets exist in memory only during the scrape, then released
+3. **Never put credentials in `config.json`** — use `credentialSecrets` file references only
+4. **Never put credentials in environment variable values in `compose.yml`** — all secrets use the `*_FILE` pattern pointing to `/run/secrets/`
+5. **Never hardcode the Sure API key or Telegram bot token** in source code, Dockerfile, or `compose.yml`
+6. **Rotate credentials in Vaultwarden first** — before overwriting a secret file on disk; never leave a stale copy in Vaultwarden
+
+### Logging & Redaction
+
+7. **Never add a log call that could expose a credential value** — Winston redaction patterns are defense-in-depth only
+8. **Never add a new secret field type** without extending the redaction regex in `src/logger.ts` to cover it
+9. **Never log per-transaction descriptions or amounts at `info` level** — per-transaction detail belongs at `debug` only
+10. **Never write CSV content to disk in production** — CSV is built in memory and posted to Sure's API; during `--dry-run`, it IS written to `/app/logs/dry-run-<companyId>-<timestamp>.csv` for inspection
+
+### Container & Network
+
+11. **Never add a `ports:` entry to `compose.yml`** — no inbound network exposure, ever
+12. **Never run the container as root** — uid/gid must remain `1000:1000`
+13. **Never remove `no-new-privileges: true`** from `security_opt` in `compose.yml`
+14. **Never add `cap_add`** to `compose.yml` — Chromium requires no extra Linux capabilities
+15. **Never set `read_only: true`** on the container — Chromium requires filesystem write access
+16. **Never enable Chromium's remote debugging port** (e.g. `--remote-debugging-port`) — creates a remote code execution surface
+
+### State & Files
+
+17. **Never store raw transaction values in `state.db`** — only SHA-256 hashes; original values must not be recoverable from the database
+18. **Never skip writing dedup keys to `state.db`** after a successful import — omitting this causes duplicate imports on the next run
+19. **Never clear or delete `state.db`** without explicit user consent — it is the only guard against duplicate imports
+20. **Never disable the zero-amount filter** — it is unconditional; no config flag exists for it
+21. **Never disable the future-date filter** — it is unconditional; prevents credit card scheduled charges from being imported
+22. **Set host directory permissions before first run**: `chmod 700` on `cache/`, `browser-data/`, `logs/`; `chmod 400` on `config.json` and all files under `secrets/`
 
 ---
 
@@ -508,9 +555,7 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 
 ### Known gaps
 
-- **`merchants.json` is empty** — functional but no merchant normalization until entries are added
 - **Browser 2FA sessions** — `browser-data/` holds Chromium profiles; if a bank forces 2FA, log in manually via the real browser first
-- **Stale Chromium lock** — if a run is killed mid-scrape, `browser-data/<companyId>/SingletonLock` may remain; delete it before next run: `find .../browser-data/ -name "SingletonLock" -delete`
 
 ### Normal operation
 
