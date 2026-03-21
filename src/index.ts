@@ -386,7 +386,11 @@ async function main(): Promise<void> {
 
   // Scheduled mode — keep process alive
   logger.info(`Scheduling runs with cron: ${scheduleExpr}`);
-  schedule(scheduleExpr, () => {
+  cronTask = schedule(scheduleExpr, () => {
+    if (shuttingDown) {
+      logger.debug('Cron fired during shutdown — skipping run');
+      return;
+    }
     run().catch(err => logger.error(`Unhandled run error: ${String(err)}`));
   }, { timezone: 'Asia/Jerusalem' });
   logger.info('Scheduler started — waiting for next trigger');
