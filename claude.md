@@ -562,6 +562,7 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | R7 | `merchants.ts`: file moved to `logs/` volume (runtime path `/app/logs/merchants.json`); env var `MERCHANTS_PATH` allows override; cache nulled at start of each `run()` so edits take effect without restart |
 | B1 | `index.ts` `run()` catch block: added `notifySyncFail()` call — Sure API failures (postImport / pollImport) now trigger Telegram alert, symmetric with scrape failures |
 | B2 | `transformer.ts` JSDoc: fixed filter list to include future-date filter as step 2 (was missing entirely); renumbered pending/dedup to steps 3/4 |
+| S3 | `index.ts` + `state.ts`: graceful SIGTERM/SIGINT handling — stops cron, closes SQLite cleanly, exits 0; no compose.yml change needed (exits within 10s) |
 
 ### Known gaps
 
