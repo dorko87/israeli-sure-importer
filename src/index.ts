@@ -326,7 +326,7 @@ async function run(): Promise<void> {
 
   // Build per-bank summary lines for Telegram
   const bankLines = allStats.map(s => {
-    if (s.accountResolutionFailed) return `❌ ${s.bank} — account not found in Sure`;
+    if (s.accountResolutionFailed) return `❌ ${s.bank} — account resolution failed`;
     if (s.error) return `❌ ${s.bank} — scrape failed`;
     if (s.importFailed) return `⚠️ ${s.bank} — import failed`;
     const parts: string[] = [`${s.scraped} scraped → ${s.newTx} new`];
