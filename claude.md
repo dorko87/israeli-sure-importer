@@ -509,11 +509,13 @@ docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
 
 ## Current Status
 
-*Last updated: 2026-03-21*
+*Last updated: 2026-03-22*
 
-### Live and verified
+### What is built and working
 
-All source files implemented, tested end-to-end against real banks (Mizrahi Bank + Max):
+Full pipeline implemented and tested end-to-end against real banks (Mizrahi Bank + Max).
+All 11 source files are complete. Two full code review passes have been completed with
+zero outstanding bugs or security violations.
 
 | File | Status |
 |------|--------|
@@ -534,6 +536,8 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | `merchants.json` | ✅ Runtime file at `/app/logs/merchants.json` (host: `logs/merchants.json`) — auto-reloaded each run |
 | `secrets/README.md` | ✅ Complete |
 | `README.md` | ✅ Complete |
+| `PRD.md` | ✅ Complete — updated to match implementation |
+| `CLAUDE.md` | ✅ Complete — updated to match implementation |
 
 ### All fixes applied and verified
 
@@ -573,10 +577,30 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | M5 | `history.ts`: promoted hardcoded `/app/logs/import_history.jsonl` to `HISTORY_PATH` env var; default unchanged, existing deployments unaffected |
 | B3 | `index.ts`: introduced `AlreadyNotifiedError` — scrape failures throw this after notifying Telegram; outer `run()` catch skips duplicate `notifySyncFail()` when it sees `AlreadyNotifiedError`; Sure API failures still trigger outer alert |
 | D1 | `CLAUDE.md`: added `CACHE_DIR` to env vars table (was implemented in `state.ts` but undocumented) |
+| D2 | Docs: `sureAccountId` documented as UUID-only across `CLAUDE.md`, `PRD.md`, `README.md` — no special values; `createAccount()` marked as unsupported internal function |
+| D3 | `PRD.md` §4.5: added `CHANGE_PASSWORD` to login errorType list (was missing; code already handled it correctly) |
+| D4 | `CLAUDE.md` + `compose.yml` + `README.md`: `NOTIFY_ON_SYNC_FAIL` documented as also gating account-resolution failure alerts, not only scraper failures |
+| D5 | `CLAUDE.md` + `compose.yml` + `README.md`: slow-scrape warnings (`> 80% of TIMEOUT_MINUTES`) documented as always firing regardless of `NOTIFY_ON_SYNC_FAIL` |
 
 ### Known gaps
 
-- **Browser 2FA sessions** — `browser-data/` holds Chromium profiles; if a bank forces 2FA, log in manually via the real browser first
+- **Browser 2FA sessions** — `browser-data/` holds Chromium profiles; if a bank forces 2FA,
+  log in manually via the real browser first, then restart the container
+
+### Not started / out of scope
+
+Nothing. All PRD features are implemented. See PRD §6 for explicitly out-of-scope items
+(no web UI, no HTTP server, no email/Slack notifications, no balance reconciliation, etc.).
+
+### Next session
+
+Push local commits to Forgejo so Komodo deploys the latest image to Unraid.
+Steps:
+1. `git push origin main` (or ask the user to push if credentials are expired)
+2. Verify Komodo picks up the webhook and redeploys the `sure` stack
+3. Run `docker exec israeli-sure-importer node dist/index.js --run-once --dry-run` to
+   confirm the new image starts correctly and scrapes without errors
+4. Check `tail -f .../logs/importer.log` for a clean run summary
 
 ### Normal operation
 
