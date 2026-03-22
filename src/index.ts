@@ -30,6 +30,17 @@ const scheduleExpr = process.env.SCHEDULE;
 let shuttingDown = false;
 let cronTask: ScheduledTask | null = null;
 
+/**
+ * Thrown by processTarget() when it has already sent a Telegram alert for the failure.
+ * The outer run() catch must NOT send a second alert when it sees this error type.
+ */
+class AlreadyNotifiedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AlreadyNotifiedError';
+  }
+}
+
 // --- Account resolution ---
 
 async function resolveAccountId(target: Target, autoCreate: boolean): Promise<string> {
@@ -109,7 +120,7 @@ async function processTarget(
     } else {
       await notifySyncFail(target.name, scrapeResult.errorType);
     }
-    throw new Error(`Scraper failed: ${scrapeResult.errorType}`);
+    throw new AlreadyNotifiedError(`Scraper failed: ${scrapeResult.errorType}`);
   }
 
   let totalImported = 0;
@@ -315,7 +326,10 @@ async function run(): Promise<void> {
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       logger.error(`[${target.name}] Pipeline failed: ${errMsg}`);
-      await notifySyncFail(target.name, errMsg);
+      // AlreadyNotifiedError: scraper notified Telegram — skip duplicate alert
+      if (!(err instanceof AlreadyNotifiedError)) {
+        await notifySyncFail(target.name, errMsg);
+      }
       failCount++;
       allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true, importFailed: false, accountResolutionFailed: false });
     }
