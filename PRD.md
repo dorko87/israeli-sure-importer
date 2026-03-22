@@ -190,7 +190,7 @@ User has modified merchants.json or config.json and wants to verify output
 Scheduled run fires
   → scraper attempts login to bank
   → bank returns login error (wrong password, account blocked, 2FA required)
-  → scraper reports errorType: INVALID_PASSWORD | CHANGE_PASSWORD | ACCOUNT_BLOCKED | TIMEOUT
+  → scraper reports errorType: INVALID_PASSWORD | CHANGE_PASSWORD | ACCOUNT_BLOCKED | TIMEOUT | GENERIC
   → bridge logs: [ERROR] [leumi] Scraper failed | errorType=INVALID_PASSWORD
   → Telegram alert sent: "🔴 Login failed — leumi | INVALID_PASSWORD"
   → other banks in config continue processing (graceful partial failure)
@@ -265,7 +265,7 @@ config.json
 
 Scraper run
   └── produces Transaction[]
-        └── filtered by: zero-amount check, state.db dedup check
+        └── filtered by: zero-amount check, future-date check, state.db dedup check
         └── transformed into: CSV row (name, notes, date, amount)
               └── name ← MerchantOverride.name OR Transaction.description
               └── notes ← additional context only (see notes column rules in CLAUDE.md)

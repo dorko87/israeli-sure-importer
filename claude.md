@@ -509,7 +509,7 @@ docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
 
 ## Current Status
 
-*Last updated: 2026-03-22*
+*Last updated: 2026-03-23*
 
 ### What is built and working
 
@@ -538,7 +538,7 @@ security violations.
 | `secrets/README.md` | ✅ Complete |
 | `README.md` | ✅ Complete |
 | `PRD.md` | ✅ Complete — updated to match implementation |
-| `CLAUDE.md` | ✅ Complete — updated to match implementation |
+| `CLAUDE.md` | ✅ Complete — updated to match implementation (2026-03-23: 9 doc fixes applied) |
 
 ### All fixes applied and verified
 
@@ -582,6 +582,7 @@ security violations.
 | D3 | `PRD.md` §4.5: added `CHANGE_PASSWORD` to login errorType list (was missing; code already handled it correctly) |
 | D4 | `CLAUDE.md` + `compose.yml` + `README.md`: `NOTIFY_ON_SYNC_FAIL` documented as also gating account-resolution failure alerts, not only scraper failures |
 | D5 | `CLAUDE.md` + `compose.yml` + `README.md`: slow-scrape warnings (`> 80% of TIMEOUT_MINUTES`) documented as always firing regardless of `NOTIFY_ON_SYNC_FAIL` |
+| P4 | `index.ts`: `main().catch` replaced `console.error` with `logger.error` — ensures fatal startup errors go through Winston (redaction, rotation) instead of bare stderr |
 
 ### Live test — 2026-03-22
 
@@ -614,12 +615,8 @@ required — all fixes below are operational (host permissions, runtime files).
 
 **Observations (non-blocking):**
 
-- `compose.yml` has `DRY_RUN: "true"` as default — the scheduled cron job will run as
-  dry run unless changed to `"false"` before production use (see Production checklist below)
 - `logs/` directory is `drwxrwxrwx` (777) — functional but wider than the recommended
   `700`; tighten with `chmod 700 logs/` if desired
-- `DAYS_BACK: "120"` served as the initial backfill value; now that `state.db` is
-  populated, `30` is sufficient for production and reduces scrape window
 
 ### Known gaps
 
@@ -635,9 +632,9 @@ Nothing. All PRD features are implemented. See PRD §6 for explicitly out-of-sco
 
 Before the 08:00 cron fires, complete these steps on Unraid:
 
-1. **Set `DRY_RUN: "false"`** in `compose.yml` and redeploy the `sure` stack via Komodo
+1. ~~**Set `DRY_RUN: "false"`** in `compose.yml` and redeploy the `sure` stack via Komodo~~ ✅ Done (`DRY_RUN: "false"`, `PUBLISH: "true"` already in compose.yml)
 2. **Accept the 382 transactions** currently in Sure's review queue (`http://192.168.1.100:3011`)
-3. **Optional:** Reduce `DAYS_BACK` from `120` to `30` in `compose.yml` (state.db handles dedup)
+3. ~~**Optional:** Reduce `DAYS_BACK` from `120` to `30` in `compose.yml` (state.db handles dedup)~~ ✅ Done (`DAYS_BACK: "30"` already in compose.yml)
 4. **Optional:** Tighten permissions: `chmod 700 logs/ cache/ browser-data/`; `chmod 400 secrets/*`
 
 ### Next session
