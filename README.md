@@ -71,10 +71,10 @@ mkdir -p /mnt/user/appdata/sure/israeli-sure-importer/{cache,browser-data,logs}
 chown -R 1000:1000 /mnt/user/appdata/sure/israeli-sure-importer/{cache,browser-data,logs}
 ```
 
-### 4. Build the image
+### 4. Pull the image
 
 ```bash
-docker compose build
+docker compose pull
 ```
 
 ### 5. Test run
@@ -83,7 +83,7 @@ Runs once with `PUBLISH=false` — transactions land in Sure's review queue, not
 is auto-published. Check the log output and the Sure UI before going further.
 
 ```bash
-docker compose run --rm israeli-sure-importer
+docker compose run --rm israeli-sure-importer node dist/index.js --run-once
 tail -f /mnt/user/appdata/sure/israeli-sure-importer/logs/importer.log
 ```
 
@@ -160,6 +160,8 @@ Contains only structure — no credentials, no API keys. Safe to commit.
 | `NOTIFY_ON_SYNC_FAIL` | `"true"` | Telegram alert on sync failure and account-resolution failure. Note: slow-scrape warnings always fire regardless of this flag. |
 | `NOTIFY_ERROR_THRESHOLD` | `0` | Telegram alert when failed tx count ≥ this |
 | `NOTIFY_ON_SUCCESS` | `"false"` | Telegram summary on successful sync |
+| `CACHE_DIR` | `/app/cache` | Override `state.db` directory |
+| `HISTORY_PATH` | `/app/logs/import_history.jsonl` | Override import history log path |
 
 ### `merchants.json`
 
@@ -223,7 +225,7 @@ identical and all but the first would be incorrectly skipped.
 | Sure field | Content | Example |
 |------------|---------|---------|
 | **Name** | Clean merchant name (from `merchants.json` if matched, otherwise raw description). No installment info — keeps Sure's Rules engine working correctly. | `קאנטרי קריית טבעון` |
-| **Notes** | Installment label (if present) + raw bank description. Full audit trail of what the bank actually sent. | `תשלום 3 מתוך 12 \| קאנטרי קריית טבעון` |
+| **Notes** | Additional context only — never duplicates what is already in Name. Plain transaction with no merchant match: empty. Plain transaction with merchant match: raw bank description (audit trail). Installment: installment label (`תשלום N מתוך M`) optionally followed by raw description if a merchant match was found. | `תשלום 3 מתוך 12 \| קאנטרי קריית טבעון` |
 
 ---
 
