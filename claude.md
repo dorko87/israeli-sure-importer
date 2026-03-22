@@ -513,9 +513,10 @@ docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
 
 ### What is built and working
 
-Full pipeline implemented and tested end-to-end against real banks (Mizrahi Bank + Max).
-All 11 source files are complete. Two full code review passes have been completed with
-zero outstanding bugs or security violations.
+Full pipeline implemented, code-reviewed, and **live-tested end-to-end** against real banks
+(Mizrahi Bank + Max) on 2026-03-22. All 11 source files are complete. Two full code review
+passes and one live production test have been completed with zero outstanding bugs or
+security violations.
 
 | File | Status |
 |------|--------|
@@ -582,6 +583,44 @@ zero outstanding bugs or security violations.
 | D4 | `CLAUDE.md` + `compose.yml` + `README.md`: `NOTIFY_ON_SYNC_FAIL` documented as also gating account-resolution failure alerts, not only scraper failures |
 | D5 | `CLAUDE.md` + `compose.yml` + `README.md`: slow-scrape warnings (`> 80% of TIMEOUT_MINUTES`) documented as always firing regardless of `NOTIFY_ON_SYNC_FAIL` |
 
+### Live test — 2026-03-22
+
+Full end-to-end run executed against production Unraid instance. No code changes were
+required — all fixes below are operational (host permissions, runtime files).
+
+**Test results — all passed:**
+
+| Step | Result |
+|------|--------|
+| Dry run — Mizrahi Bank | ✅ 56 tx scraped, CSV written to `logs/` |
+| Dry run — Max Card | ✅ 326 tx (11 zero-amount filtered, 2 future-dated filtered), CSV written |
+| merchants.json loaded | ✅ 128 entries, fuzzy match active |
+| CSV format | ✅ DD/MM/YYYY dates, negative expenses, installments in `notes` only |
+| Real import — Mizrahi | ✅ 56 tx → `Import status: pending` (review queue) |
+| Real import — Max | ✅ 326 tx → `Import status: pending` (review queue) |
+| Dedup keys written | ✅ 382 keys inserted into `state.db` |
+| state.db backup | ✅ `state.db.bak` created after each run |
+| import_history.jsonl | ✅ Entries written with real `importId` values |
+| Telegram success alert | ✅ Received for both real run and dedup run |
+| Deduplication re-run | ✅ Mizrahi 56→0 new (dedup=56), Max 339→0 new (dedup=326) |
+| Container exit | ✅ Ephemeral containers exited cleanly (`=== Run finished ===`) |
+
+**Operational fixes applied during live test (no code changes):**
+
+| ID | Fix |
+|----|-----|
+| T1 | `chown -R 1000:1000 /mnt/user/appdata/sure/israeli-sure-importer/` — all appdata dirs were owned by `nobody` (uid 99); container runs as uid 1000 and could not write to `browser-data/`, `cache/`, or read `secrets/` with `chmod 400` |
+| T2 | Created `logs/merchants.json` as `[]` then populated with 128 entries — file is not shipped in the image and must be created manually on first deploy |
+
+**Observations (non-blocking):**
+
+- `compose.yml` has `DRY_RUN: "true"` as default — the scheduled cron job will run as
+  dry run unless changed to `"false"` before production use (see Production checklist below)
+- `logs/` directory is `drwxrwxrwx` (777) — functional but wider than the recommended
+  `700`; tighten with `chmod 700 logs/` if desired
+- `DAYS_BACK: "120"` served as the initial backfill value; now that `state.db` is
+  populated, `30` is sufficient for production and reduces scrape window
+
 ### Known gaps
 
 - **Browser 2FA sessions** — `browser-data/` holds Chromium profiles; if a bank forces 2FA,
@@ -592,15 +631,25 @@ zero outstanding bugs or security violations.
 Nothing. All PRD features are implemented. See PRD §6 for explicitly out-of-scope items
 (no web UI, no HTTP server, no email/Slack notifications, no balance reconciliation, etc.).
 
+### Production checklist (one-time, before first scheduled run)
+
+Before the 08:00 cron fires, complete these steps on Unraid:
+
+1. **Set `DRY_RUN: "false"`** in `compose.yml` and redeploy the `sure` stack via Komodo
+2. **Accept the 382 transactions** currently in Sure's review queue (`http://192.168.1.100:3011`)
+3. **Optional:** Reduce `DAYS_BACK` from `120` to `30` in `compose.yml` (state.db handles dedup)
+4. **Optional:** Tighten permissions: `chmod 700 logs/ cache/ browser-data/`; `chmod 400 secrets/*`
+
 ### Next session
 
-Push local commits to Forgejo so Komodo deploys the latest image to Unraid.
-Steps:
-1. `git push origin main` (or ask the user to push if credentials are expired)
-2. Verify Komodo picks up the webhook and redeploys the `sure` stack
-3. Run `docker exec israeli-sure-importer node dist/index.js --run-once --dry-run` to
-   confirm the new image starts correctly and scrapes without errors
-4. Check `tail -f .../logs/importer.log` for a clean run summary
+Container is live on Unraid and fully operational. `merchants.json` populated (128 entries).
+382 transactions imported and pending review in Sure UI.
+
+Typical next-session tasks:
+- Review/accept the 382 transactions in Sure UI
+- Monitor the first scheduled run (`0 8 * * *`) via Telegram alert
+- Add more merchants to `merchants.json` as needed (auto-reloaded each run, no restart needed)
+- If banks force 2FA: log in manually via the host browser under `browser-data/<companyId>/`
 
 ### Normal operation
 

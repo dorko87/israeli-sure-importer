@@ -418,6 +418,6 @@ process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT',  () => handleShutdown('SIGINT'));
 
 main().catch(err => {
-  console.error('Fatal error:', err);
+  logger.error('Fatal error', { error: err instanceof Error ? err.message : String(err) });
   process.exit(1);
 });
