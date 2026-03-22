@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import logger from './logger';
 
-const HISTORY_PATH = path.join('/app/logs', 'import_history.jsonl');
+const HISTORY_PATH = process.env.HISTORY_PATH ?? path.join('/app/logs', 'import_history.jsonl');
 
 export interface HistoryEntry {
   timestamp: string;       // ISO 8601
