@@ -6,6 +6,15 @@ interface MerchantEntry {
   name: string;
 }
 
+function isMerchantEntry(entry: unknown): entry is MerchantEntry {
+  return (
+    typeof entry === 'object' &&
+    entry !== null &&
+    typeof (entry as Record<string, unknown>).pattern === 'string' &&
+    typeof (entry as Record<string, unknown>).name === 'string'
+  );
+}
+
 const MERCHANTS_PATH = process.env.MERCHANTS_PATH ?? '/app/logs/merchants.json';
 
 let merchants: MerchantEntry[] | null = null;
@@ -15,9 +24,21 @@ function loadMerchants(): MerchantEntry[] {
 
   try {
     const content = fs.readFileSync(MERCHANTS_PATH, 'utf-8');
-    merchants = JSON.parse(content) as MerchantEntry[];
-    if (merchants.length > 0) {
-      logger.debug(`Merchants: loaded ${merchants.length} entries from ${MERCHANTS_PATH}`);
+    const parsed: unknown = JSON.parse(content);
+
+    if (!Array.isArray(parsed)) {
+      logger.warn(`merchants.json is not an array — merchant normalization disabled`);
+      merchants = [];
+    } else {
+      const valid = parsed.filter(isMerchantEntry);
+      const skipped = parsed.length - valid.length;
+      if (skipped > 0) {
+        logger.warn(`merchants.json: skipped ${skipped} invalid entries (missing pattern or name field)`);
+      }
+      merchants = valid;
+      if (merchants.length > 0) {
+        logger.debug(`Merchants: loaded ${merchants.length} entries from ${MERCHANTS_PATH}`);
+      }
     }
   } catch {
     logger.debug('merchants.json not found or unreadable — merchant normalization disabled');
