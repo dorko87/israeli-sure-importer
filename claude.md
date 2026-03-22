@@ -308,6 +308,7 @@ All set in `compose.yml`. Never in `config.json`.
 | `PUPPETEER_EXECUTABLE_PATH` | string | `/usr/bin/chromium` |
 | `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` | string | `"true"` |
 | `BROWSER_DATA_DIR` | string | `/app/browser-data` — per-bank profile dir |
+| `CACHE_DIR` | string | Override state.db directory (default: `/app/cache`) |
 | `MERCHANTS_PATH` | string | Override merchants.json path (default: `/app/logs/merchants.json`) |
 | `HISTORY_PATH` | string | Override import_history.jsonl path (default: `/app/logs/import_history.jsonl`) |
 | `SURE_API_KEY_FILE` | string | Path to Sure API key secret file |
@@ -568,6 +569,8 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | M2 | `sure-client.ts`: JSDoc warning on `createAccount()` — sends no account type; default is Cash which is wrong for credit card targets; only affects `autoCreateAccounts: true` (opt-in, off by default) |
 | M3 | `merchants.ts`: `isMerchantEntry()` type guard added; validates array + `{pattern, name}` shape after `JSON.parse`; invalid entries skipped with `warn` log instead of crashing the run |
 | M5 | `history.ts`: promoted hardcoded `/app/logs/import_history.jsonl` to `HISTORY_PATH` env var; default unchanged, existing deployments unaffected |
+| B3 | `index.ts`: introduced `AlreadyNotifiedError` — scrape failures throw this after notifying Telegram; outer `run()` catch skips duplicate `notifySyncFail()` when it sees `AlreadyNotifiedError`; Sure API failures still trigger outer alert |
+| D1 | `CLAUDE.md`: added `CACHE_DIR` to env vars table (was implemented in `state.ts` but undocumented) |
 
 ### Known gaps
 
