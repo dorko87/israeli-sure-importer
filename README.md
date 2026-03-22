@@ -157,7 +157,7 @@ Contains only structure — no credentials, no API keys. Safe to commit.
 | `BROWSER_DATA_DIR` | `/app/browser-data` | Per-bank browser profile path. Remove to use fresh session every run. |
 | `MERCHANTS_PATH` | `/app/logs/merchants.json` | Override path to `merchants.json`. |
 | `NOTIFY_ON_LOGIN_FAIL` | `"true"` | Telegram alert on bank login failure |
-| `NOTIFY_ON_SYNC_FAIL` | `"true"` | Telegram alert when entire sync fails |
+| `NOTIFY_ON_SYNC_FAIL` | `"true"` | Telegram alert on sync failure and account-resolution failure. Note: slow-scrape warnings always fire regardless of this flag. |
 | `NOTIFY_ERROR_THRESHOLD` | `0` | Telegram alert when failed tx count ≥ this |
 | `NOTIFY_ON_SUCCESS` | `"false"` | Telegram summary on successful sync |
 

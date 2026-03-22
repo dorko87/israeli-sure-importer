@@ -282,9 +282,11 @@ Base URL from `config.json → sure.baseUrl`. Auth: `X-Api-Key` header (value fr
 }
 ```
 
-**Create Sure accounts manually in the Sure UI before first run.**
-Select the correct account type (Cash for bank accounts, Credit Card for cards).
-Get the UUID from the Sure account settings and paste it here.
+**`sureAccountId` must always be a UUID string — no special values.**
+Create the account manually in the Sure UI before first run:
+- Sure UI → Accounts → New Account
+- Select the correct type: **Cash** for bank accounts, **Credit Card** for credit cards
+- Open the account settings and copy the UUID — paste it into `sureAccountId`
 
 **Never add credentials, API keys, or tokens to config.json.**
 
@@ -315,7 +317,7 @@ All set in `compose.yml`. Never in `config.json`.
 | `TELEGRAM_BOT_TOKEN_FILE` | string | Path to Telegram bot token secret file |
 | `TELEGRAM_CHAT_ID` | string | Telegram chat ID (not sensitive) |
 | `NOTIFY_ON_LOGIN_FAIL` | string | `"true"` / `"false"` |
-| `NOTIFY_ON_SYNC_FAIL` | string | `"true"` / `"false"` |
+| `NOTIFY_ON_SYNC_FAIL` | string | `"true"` / `"false"` — also gates account-resolution failure alerts; slow-scrape warnings (`> 80% of TIMEOUT_MINUTES`) always fire regardless of this flag |
 | `NOTIFY_ERROR_THRESHOLD` | number | Alert if failed tx count ≥ this value |
 | `NOTIFY_ON_SUCCESS` | string | `"true"` / `"false"` (default false) |
 
@@ -566,7 +568,7 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | B2 | `transformer.ts` JSDoc: fixed filter list to include future-date filter as step 2 (was missing entirely); renumbered pending/dedup to steps 3/4 |
 | S3 | `index.ts` + `state.ts`: graceful SIGTERM/SIGINT handling — stops cron, closes SQLite cleanly, exits 0; no compose.yml change needed (exits within 10s) |
 | M1 | `index.ts`: account resolution failures now call `notifySyncFail()` and show `"account resolution failed"` in Telegram summary; `accountResolutionFailed` field added to `TargetStats` |
-| M2 | `sure-client.ts`: JSDoc warning on `createAccount()` — sends no account type; default is Cash which is wrong for credit card targets; only affects `autoCreateAccounts: true` (opt-in, off by default) |
+| M2 | `sure-client.ts`: JSDoc warning on `createAccount()` — sends no account type; this function is not a documented or supported feature; accounts must always be created manually in the Sure UI with the correct type before the importer runs |
 | M3 | `merchants.ts`: `isMerchantEntry()` type guard added; validates array + `{pattern, name}` shape after `JSON.parse`; invalid entries skipped with `warn` log instead of crashing the run |
 | M5 | `history.ts`: promoted hardcoded `/app/logs/import_history.jsonl` to `HISTORY_PATH` env var; default unchanged, existing deployments unaffected |
 | B3 | `index.ts`: introduced `AlreadyNotifiedError` — scrape failures throw this after notifying Telegram; outer `run()` catch skips duplicate `notifySyncFail()` when it sees `AlreadyNotifiedError`; Sure API failures still trigger outer alert |
