@@ -309,6 +309,7 @@ All set in `compose.yml`. Never in `config.json`.
 | `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` | string | `"true"` |
 | `BROWSER_DATA_DIR` | string | `/app/browser-data` — per-bank profile dir |
 | `MERCHANTS_PATH` | string | Override merchants.json path (default: `/app/logs/merchants.json`) |
+| `HISTORY_PATH` | string | Override import_history.jsonl path (default: `/app/logs/import_history.jsonl`) |
 | `SURE_API_KEY_FILE` | string | Path to Sure API key secret file |
 | `TELEGRAM_BOT_TOKEN_FILE` | string | Path to Telegram bot token secret file |
 | `TELEGRAM_CHAT_ID` | string | Telegram chat ID (not sensitive) |
@@ -563,6 +564,10 @@ All source files implemented, tested end-to-end against real banks (Mizrahi Bank
 | B1 | `index.ts` `run()` catch block: added `notifySyncFail()` call — Sure API failures (postImport / pollImport) now trigger Telegram alert, symmetric with scrape failures |
 | B2 | `transformer.ts` JSDoc: fixed filter list to include future-date filter as step 2 (was missing entirely); renumbered pending/dedup to steps 3/4 |
 | S3 | `index.ts` + `state.ts`: graceful SIGTERM/SIGINT handling — stops cron, closes SQLite cleanly, exits 0; no compose.yml change needed (exits within 10s) |
+| M1 | `index.ts`: account resolution failures now call `notifySyncFail()` and show `"account resolution failed"` in Telegram summary; `accountResolutionFailed` field added to `TargetStats` |
+| M2 | `sure-client.ts`: JSDoc warning on `createAccount()` — sends no account type; default is Cash which is wrong for credit card targets; only affects `autoCreateAccounts: true` (opt-in, off by default) |
+| M3 | `merchants.ts`: `isMerchantEntry()` type guard added; validates array + `{pattern, name}` shape after `JSON.parse`; invalid entries skipped with `warn` log instead of crashing the run |
+| M5 | `history.ts`: promoted hardcoded `/app/logs/import_history.jsonl` to `HISTORY_PATH` env var; default unchanged, existing deployments unaffected |
 
 ### Known gaps
 
