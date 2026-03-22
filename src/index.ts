@@ -68,6 +68,7 @@ interface TargetStats {
   pendingSkipped: number;
   error: boolean;
   importFailed: boolean;
+  accountResolutionFailed: boolean;
 }
 
 async function processTarget(
@@ -236,6 +237,7 @@ async function processTarget(
     pendingSkipped: totalPending,
     error: false,
     importFailed: hasImportFailure,
+    accountResolutionFailed: false,
   };
 }
 
@@ -280,6 +282,7 @@ async function run(): Promise<void> {
         accountIds.set(target.name, id);
       } catch (err) {
         logger.error(`[${target.name}] Account resolution failed: ${String(err)}`);
+        await notifySyncFail(target.name, `Account resolution failed: ${String(err)}`);
         // Target will be skipped in the processing loop
       }
     }
@@ -300,7 +303,7 @@ async function run(): Promise<void> {
     const accountId = accountIds.get(target.name);
     if (!accountId) {
       failCount++;
-      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true, importFailed: false });
+      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: false, importFailed: false, accountResolutionFailed: true });
       continue;
     }
 
@@ -314,7 +317,7 @@ async function run(): Promise<void> {
       logger.error(`[${target.name}] Pipeline failed: ${errMsg}`);
       await notifySyncFail(target.name, errMsg);
       failCount++;
-      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true, importFailed: false });
+      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true, importFailed: false, accountResolutionFailed: false });
     }
   }
 
@@ -323,6 +326,7 @@ async function run(): Promise<void> {
 
   // Build per-bank summary lines for Telegram
   const bankLines = allStats.map(s => {
+    if (s.accountResolutionFailed) return `❌ ${s.bank} — account not found in Sure`;
     if (s.error) return `❌ ${s.bank} — scrape failed`;
     if (s.importFailed) return `⚠️ ${s.bank} — import failed`;
     const parts: string[] = [`${s.scraped} scraped → ${s.newTx} new`];
