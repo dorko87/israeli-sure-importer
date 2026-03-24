@@ -4,7 +4,6 @@ import * as fs from 'fs';
 
 export interface SureConfig {
   baseUrl: string;
-  autoCreateAccounts?: boolean;
 }
 
 export interface Target {
@@ -30,7 +29,6 @@ const schema = {
       additionalProperties: false,
       properties: {
         baseUrl: { type: 'string', minLength: 1 },
-        autoCreateAccounts: { type: 'boolean' },
       },
     },
     targets: {
