@@ -5,8 +5,6 @@ import { loadConfig, type Target } from './config';
 import { loadAppSecrets, readSecretFile } from './secrets';
 import {
   initSureClient,
-  getAccounts,
-  createAccount,
   postImport,
   pollImport,
   checkImport,
@@ -41,33 +39,6 @@ class AlreadyNotifiedError extends Error {
   }
 }
 
-// --- Account resolution ---
-
-async function resolveAccountId(target: Target, autoCreate: boolean): Promise<string> {
-  if (target.sureAccountId !== 'auto') {
-    return target.sureAccountId;
-  }
-
-  const accounts = await getAccounts();
-  const match = accounts.find(a => a.name === target.name);
-
-  if (match) {
-    logger.info(`[${target.name}] Matched Sure account id=${match.id}`);
-    return match.id;
-  }
-
-  if (!autoCreate) {
-    throw new Error(
-      `[${target.name}] No Sure account found with name "${target.name}" and autoCreateAccounts=false`
-    );
-  }
-
-  logger.info(`[${target.name}] Creating Sure account "${target.name}"`);
-  const created = await createAccount(target.name);
-  logger.info(`[${target.name}] Created Sure account id=${created.id}`);
-  return created.id;
-}
-
 // --- Per-target pipeline ---
 
 interface TargetStats {
@@ -79,7 +50,6 @@ interface TargetStats {
   pendingSkipped: number;
   error: boolean;
   importFailed: boolean;
-  accountResolutionFailed: boolean;
 }
 
 async function processTarget(
@@ -248,7 +218,6 @@ async function processTarget(
     pendingSkipped: totalPending,
     error: false,
     importFailed: hasImportFailure,
-    accountResolutionFailed: false,
   };
 }
 
@@ -284,26 +253,6 @@ async function run(): Promise<void> {
   }
   initNotifier(secrets.telegramBotToken);
 
-  // Resolve Sure account IDs upfront (skipped in dry run)
-  const accountIds = new Map<string, string>();
-  if (!dryRun) {
-    for (const target of config.targets) {
-      try {
-        const id = await resolveAccountId(target, config.sure.autoCreateAccounts ?? false);
-        accountIds.set(target.name, id);
-      } catch (err) {
-        logger.error(`[${target.name}] Account resolution failed: ${String(err)}`);
-        await notifySyncFail(target.name, `Account resolution failed: ${String(err)}`);
-        // Target will be skipped in the processing loop
-      }
-    }
-  } else {
-    // In dry run, use placeholder so processTarget can still run
-    for (const target of config.targets) {
-      accountIds.set(target.name, 'dry-run');
-    }
-  }
-
   // Process each target sequentially — one bank failing does not stop the others
   const allStats: TargetStats[] = [];
   let totalImported = 0;
@@ -311,12 +260,7 @@ async function run(): Promise<void> {
   let failCount = 0;
 
   for (const target of config.targets) {
-    const accountId = accountIds.get(target.name);
-    if (!accountId) {
-      failCount++;
-      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: false, importFailed: false, accountResolutionFailed: true });
-      continue;
-    }
+    const accountId = dryRun ? 'dry-run' : target.sureAccountId;
 
     try {
       const stats = await processTarget(target, accountId);
@@ -331,7 +275,7 @@ async function run(): Promise<void> {
         await notifySyncFail(target.name, errMsg);
       }
       failCount++;
-      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true, importFailed: false, accountResolutionFailed: false });
+      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true, importFailed: false });
     }
   }
 
@@ -340,7 +284,6 @@ async function run(): Promise<void> {
 
   // Build per-bank summary lines for Telegram
   const bankLines = allStats.map(s => {
-    if (s.accountResolutionFailed) return `❌ ${s.bank} — account resolution failed`;
     if (s.error) return `❌ ${s.bank} — scrape failed`;
     if (s.importFailed) return `⚠️ ${s.bank} — import failed`;
     const parts: string[] = [`${s.scraped} scraped → ${s.newTx} new`];

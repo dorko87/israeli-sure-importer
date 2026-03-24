@@ -37,22 +37,6 @@ export async function getAccounts(): Promise<SureAccount[]> {
   return res.data.accounts;
 }
 
-/**
- * Creates a new Sure account with the given name.
- *
- * ⚠️  WARNING: This call sends no account type. Sure will use its default type
- * (likely Cash). If the target requires a Credit Card account, create the account
- * manually in the Sure UI with the correct type and paste the UUID into config.json
- * instead of relying on auto-creation.
- *
- * This function is only reached when `autoCreateAccounts: true` is set in config.json
- * (opt-in, off by default).
- */
-export async function createAccount(name: string): Promise<SureAccount> {
-  const res = await getClient().post<SureAccount>('/api/v1/accounts', { name });
-  return res.data;
-}
-
 export interface PostImportParams {
   accountId: string;
   csv: string;
