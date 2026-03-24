@@ -63,10 +63,12 @@ Most important first.
   `chargedAmount === 0` before import; these carry no financial value and would
   only create noise in Sure
 
-- **Installment-aware notes** — the `notes` field contains only information not
+- **Context-rich notes** — the `notes` field contains only information not
   already in `name`: installment label (`תשלום 3 מתוך 12`) for installment
   transactions, raw bank description for merchant-overridden transactions (audit
-  trail), empty for plain transactions where `name` already holds the description;
+  trail), bank `memo` for transfer/non-installment transactions (e.g. Paybox
+  recipient and purpose — `"למי: Name, עבור: Purpose"`), empty for plain
+  transactions where `name` already holds the description;
   the `name` field stays clean for Sure's Rules engine to match against
 
 - **Merchant normalization** — `merchants.json` maps raw Hebrew/English bank

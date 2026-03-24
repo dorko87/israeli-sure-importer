@@ -38,23 +38,36 @@ function formatDate(isoDate: string): string {
  * Builds the notes column value. Notes should only contain information that is
  * NOT already present in the name column — no redundant duplication.
  *
- * | Scenario                              | notes result                          |
- * |---------------------------------------|---------------------------------------|
- * | No installments, no merchant match    | ""  (empty — name is identical)       |
- * | No installments, merchant match found | raw description (audit trail)         |
- * | Installments, no merchant match       | "תשלום N מתוך M" (label only)         |
- * | Installments, merchant match found    | "תשלום N מתוך M | raw description"    |
+ * memo is included only when tx.installments is absent. When installments exist,
+ * Max's scraper sets memo to the installment label ("תשלום X מתוך Y"), which is
+ * identical to the label we generate from tx.installments — so we skip it.
+ *
+ * | installments? | merchant match? | memo?  | notes result                       |
+ * |:---:|:---:|:---:|------------------------------------------------------------|
+ * |       —       |       —         |   —    | "" (empty)                         |
+ * |       —       |       —         |   ✓    | memo                               |
+ * |       —       |       ✓         |   —    | raw description (audit trail)      |
+ * |       —       |       ✓         |   ✓    | raw description | memo             |
+ * |       ✓       |       —         |   —    | "תשלום N מתוך M"                    |
+ * |       ✓       |       —         |   ✓    | "תשלום N מתוך M" (memo skipped)     |
+ * |       ✓       |       ✓         |   —    | "תשלום N מתוך M | raw description"  |
+ * |       ✓       |       ✓         |   ✓    | "תשלום N מתוך M | raw description"  |
  */
 function buildNotes(tx: Transaction, resolvedName: string): string {
   const hasOverride = resolvedName !== tx.description;
   const label = tx.installments
     ? `תשלום ${tx.installments.number} מתוך ${tx.installments.total}`
     : null;
+  // Skip memo when installments are present — Max sets memo to the installment label,
+  // which is identical to the label we already generate from tx.installments.
+  const memo = !tx.installments && tx.memo?.trim() ? tx.memo.trim() : null;
 
   if (label && hasOverride) return `${label} | ${tx.description}`;
-  if (label)                return label;           // description already in name
-  if (hasOverride)          return tx.description;  // raw for audit trail
-  return '';                                        // notes would duplicate name — leave empty
+  if (label)                return label;
+  if (hasOverride && memo)  return `${tx.description} | ${memo}`;
+  if (hasOverride)          return tx.description;
+  if (memo)                 return memo;
+  return '';
 }
 
 /**
