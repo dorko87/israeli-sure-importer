@@ -33,7 +33,7 @@ israeli-sure-importer/
 │   ├── scraper.ts        ← wraps israeli-bank-scrapers, per-bank timeout
 │   ├── transformer.ts    ← normalizes transactions, builds CSV string
 │   ├── merchants.ts      ← loads merchants.json, fuzzy match logic
-│   ├── sure-client.ts    ← Sure API calls (accounts, imports, polling)
+│   ├── sure-client.ts    ← Sure API calls (imports, polling)
 │   ├── state.ts          ← SQLite deduplication state (better-sqlite3)
 │   ├── history.ts        ← append-only JSONL import history log
 │   ├── notifier.ts       ← Telegram alerts
@@ -57,7 +57,6 @@ israeli-sure-importer/
 ```
 1. STARTUP      Read SURE_API_KEY_FILE → /run/secrets/sure_api_key
                 Validate all secret files exist and are non-empty
-                GET /api/v1/accounts — verify configured Sure accounts exist
 
 2. SCRAPE       israeli-bank-scrapers per target in config.json
                 Timeout: TIMEOUT_MINUTES (sets both job timeout + defaultTimeout)
@@ -244,7 +243,6 @@ Base URL from `config.json → sure.baseUrl`. Auth: `X-Api-Key` header (value fr
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/v1/accounts` | List accounts, verify UUID mapping |
 | `POST` | `/api/v1/imports` | Submit CSV import |
 | `GET` | `/api/v1/imports/:id` | Poll import status |
 
@@ -273,6 +271,7 @@ Base URL from `config.json → sure.baseUrl`. Auth: `X-Api-Key` header (value fr
 `pending` | `importing` | `complete` | `failed` | `reverting` | `revert_failed`
 
 ### NOT used — do not add
+- `GET /api/v1/accounts` — exported in `sure-client.ts` but not called at runtime; `sureAccountId` is a UUID set directly in `config.json`
 - `POST /api/v1/accounts` — accounts are created manually in the Sure UI, not by the importer
 - `POST /api/v1/transactions` — direct transaction creation is not used
 - `GET/POST /api/v1/merchants` — merchant handling is done locally via merchants.json
@@ -338,7 +337,7 @@ All set in `compose.yml`. Never in `config.json`.
 | `TELEGRAM_BOT_TOKEN_FILE` | string | Path to Telegram bot token secret file |
 | `TELEGRAM_CHAT_ID` | string | Telegram chat ID (not sensitive) |
 | `NOTIFY_ON_LOGIN_FAIL` | string | `"true"` / `"false"` |
-| `NOTIFY_ON_SYNC_FAIL` | string | `"true"` / `"false"` — also gates account-resolution failure alerts; slow-scrape warnings (`> 80% of TIMEOUT_MINUTES`) always fire regardless of this flag |
+| `NOTIFY_ON_SYNC_FAIL` | string | `"true"` / `"false"` — slow-scrape warnings (`> 80% of TIMEOUT_MINUTES`) always fire regardless of this flag |
 | `NOTIFY_ERROR_THRESHOLD` | number | Alert if failed tx count ≥ this value |
 | `NOTIFY_ON_SUCCESS` | string | `"true"` / `"false"` (default false) |
 
@@ -530,14 +529,26 @@ docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
 
 ## Current Status
 
-*Last updated: 2026-03-23*
+*Last updated: 2026-03-24*
 
 ### What is built and working
 
 Full pipeline implemented, code-reviewed, and **live-tested end-to-end** against real banks
-(Mizrahi Bank + Max) on 2026-03-22. All 11 source files are complete. Two full code review
+(Mizrahi Bank + Max) on 2026-03-22. All 11 source files are complete. Three full code review
 passes and one live production test have been completed with zero outstanding bugs or
 security violations.
+
+Container is live on Unraid and running on schedule (`0 8 * * *`). `merchants.json` populated
+(128+ entries). Initial 382 transactions accepted in Sure UI.
+
+**Session 2026-03-24 changes:** Removed the dead `sureAccountId: 'auto'` / `autoCreateAccounts`
+code path. `sureAccountId` is now UUID-only with no runtime lookup — the UUID from `config.json`
+is used directly. `config.ts` schema now rejects any config that contains `autoCreateAccounts`.
+Applied cosmetic and documentation cleanup across all three doc files.
+
+⚠️ **Image rebuild required** — `config.ts`, `sure-client.ts`, and `index.ts` were modified
+in this session. The Docker image on Unraid must be rebuilt and redeployed via Komodo before
+the next scheduled run.
 
 | File | Status |
 |------|--------|
@@ -559,7 +570,7 @@ security violations.
 | `secrets/README.md` | ✅ Complete |
 | `README.md` | ✅ Complete |
 | `PRD.md` | ✅ Complete — updated to match implementation |
-| `CLAUDE.md` | ✅ Complete — updated to match implementation (2026-03-23: 9 doc fixes applied) |
+| `CLAUDE.md` | ✅ Complete — updated to match implementation (2026-03-24) |
 
 ### All fixes applied and verified
 
@@ -593,24 +604,26 @@ security violations.
 | B1 | `index.ts` `run()` catch block: added `notifySyncFail()` call — Sure API failures (postImport / pollImport) now trigger Telegram alert, symmetric with scrape failures |
 | B2 | `transformer.ts` JSDoc: fixed filter list to include future-date filter as step 2 (was missing entirely); renumbered pending/dedup to steps 3/4 |
 | S3 | `index.ts` + `state.ts`: graceful SIGTERM/SIGINT handling — stops cron, closes SQLite cleanly, exits 0; no compose.yml change needed (exits within 10s) |
-| M1 | `index.ts`: account resolution failures now call `notifySyncFail()` and show `"account resolution failed"` in Telegram summary; `accountResolutionFailed` field added to `TargetStats` |
-| M2 | `sure-client.ts`: JSDoc warning on `createAccount()` — sends no account type; this function is not a documented or supported feature; accounts must always be created manually in the Sure UI with the correct type before the importer runs |
+| M1 | `index.ts`: account resolution failures now call `notifySyncFail()` and show `"account resolution failed"` in Telegram summary; `accountResolutionFailed` field added to `TargetStats` — **superseded by X1** |
+| M2 | `sure-client.ts`: JSDoc warning on `createAccount()` — sends no account type — **superseded by X1** |
 | M3 | `merchants.ts`: `isMerchantEntry()` type guard added; validates array + `{pattern, name}` shape after `JSON.parse`; invalid entries skipped with `warn` log instead of crashing the run |
 | M5 | `history.ts`: promoted hardcoded `/app/logs/import_history.jsonl` to `HISTORY_PATH` env var; default unchanged, existing deployments unaffected |
 | B3 | `index.ts`: introduced `AlreadyNotifiedError` — scrape failures throw this after notifying Telegram; outer `run()` catch skips duplicate `notifySyncFail()` when it sees `AlreadyNotifiedError`; Sure API failures still trigger outer alert |
 | D1 | `CLAUDE.md`: added `CACHE_DIR` to env vars table (was implemented in `state.ts` but undocumented) |
-| D2 | Docs: `sureAccountId` documented as UUID-only across `CLAUDE.md`, `PRD.md`, `README.md` — no special values; `createAccount()` marked as unsupported internal function |
+| D2 | Docs: `sureAccountId` documented as UUID-only across `CLAUDE.md`, `PRD.md`, `README.md` — no special values |
 | D3 | `PRD.md` §4.5: added `CHANGE_PASSWORD` to login errorType list (was missing; code already handled it correctly) |
-| D4 | `CLAUDE.md` + `compose.yml` + `README.md`: `NOTIFY_ON_SYNC_FAIL` documented as also gating account-resolution failure alerts, not only scraper failures |
+| D4 | `CLAUDE.md` + `compose.yml` + `README.md`: `NOTIFY_ON_SYNC_FAIL` slow-scrape warning behaviour documented |
 | D5 | `CLAUDE.md` + `compose.yml` + `README.md`: slow-scrape warnings (`> 80% of TIMEOUT_MINUTES`) documented as always firing regardless of `NOTIFY_ON_SYNC_FAIL` |
 | P4 | `index.ts`: `main().catch` replaced `console.error` with `logger.error` — ensures fatal startup errors go through Winston (redaction, rotation) instead of bare stderr |
+| V1 | `transformer.ts` + `CLAUDE.md` + `PRD.md` + `README.md`: bank `memo` field included in `notes` column for non-installment transactions; installment memo skipped (Max sets it to the label we already generate) |
+| X1 | `config.ts`, `sure-client.ts`, `index.ts`: removed `sureAccountId: 'auto'` code path entirely — `sureAccountId` is UUID-only; removed `autoCreateAccounts` from schema; removed `createAccount()`, `resolveAccountId()`, `accountResolutionFailed` |
+| X2 | `sure-client.ts`: removed double blank line (cosmetic cleanup after `createAccount()` removal) |
+| X3 | `compose.yml`: removed stale comment about `NOTIFY_ON_SYNC_FAIL` gating account-resolution alerts (no longer possible) |
+| X4 | `CLAUDE.md`, `PRD.md`, `README.md`: final doc pass — 7 corrections: `sure-client.ts` description, code review count, production checklist, Next session section, PRD §4.1 log status (`complete`→`pending`), Transaction entity `memo` field, README notes column memo description |
 
 ### Live test — 2026-03-22
 
-Full end-to-end run executed against production Unraid instance. No code changes were
-required — all fixes below are operational (host permissions, runtime files).
-
-**Test results — all passed:**
+Full end-to-end run executed against production Unraid instance.
 
 | Step | Result |
 |------|--------|
@@ -627,49 +640,54 @@ required — all fixes below are operational (host permissions, runtime files).
 | Deduplication re-run | ✅ Mizrahi 56→0 new (dedup=56), Max 339→0 new (dedup=326) |
 | Container exit | ✅ Ephemeral containers exited cleanly (`=== Run finished ===`) |
 
-**Operational fixes applied during live test (no code changes):**
+**Operational fixes applied during live test:**
 
 | ID | Fix |
 |----|-----|
-| T1 | `chown -R 1000:1000 /mnt/user/appdata/sure/israeli-sure-importer/` — all appdata dirs were owned by `nobody` (uid 99); container runs as uid 1000 and could not write to `browser-data/`, `cache/`, or read `secrets/` with `chmod 400` |
-| T2 | Created `logs/merchants.json` as `[]` then populated with 128 entries — file is not shipped in the image and must be created manually on first deploy |
-
-**Observations (non-blocking):**
-
-- `logs/` directory is `drwxrwxrwx` (777) — functional but wider than the recommended
-  `700`; tighten with `chmod 700 logs/` if desired
+| T1 | `chown -R 1000:1000 /mnt/user/appdata/sure/israeli-sure-importer/` — dirs were owned by `nobody` (uid 99); container runs as uid 1000 |
+| T2 | Created `logs/merchants.json` as `[]` then populated with 128 entries — not shipped in image, must be created on first deploy |
 
 ### Known gaps
 
 - **Browser 2FA sessions** — `browser-data/` holds Chromium profiles; if a bank forces 2FA,
   log in manually via the real browser first, then restart the container
+- **`getAccounts()` exported but unused** — still in `sure-client.ts`; harmless, documented in
+  the "NOT used" API table; can be removed in a future cleanup pass if desired
 
 ### Not started / out of scope
 
 Nothing. All PRD features are implemented. See PRD §6 for explicitly out-of-scope items
 (no web UI, no HTTP server, no email/Slack notifications, no balance reconciliation, etc.).
 
-### Production checklist (one-time, before first scheduled run)
+### Production checklist (one-time)
 
-Before the 08:00 cron fires, complete these steps on Unraid:
-
-1. ~~**Set `DRY_RUN: "false"`** in `compose.yml` and redeploy the `sure` stack via Komodo~~ ✅ Done (`DRY_RUN: "false"`, `PUBLISH: "true"` already in compose.yml)
-2. **Accept the 382 transactions** currently in Sure's review queue (`http://192.168.1.100:3011`)
-3. ~~**Optional:** Reduce `DAYS_BACK` from `120` to `30` in `compose.yml` (state.db handles dedup)~~ ✅ Done (`DAYS_BACK: "30"` already in compose.yml)
+1. ~~**Set `DRY_RUN: "false"`** in `compose.yml`~~ ✅ Done
+2. ~~**Accept the 382 transactions** in Sure's review queue~~ ✅ Done
+3. ~~**Reduce `DAYS_BACK`** from `120` to `30`~~ ✅ Done
 4. **Optional:** Tighten permissions: `chmod 700 logs/ cache/ browser-data/`; `chmod 400 secrets/*`
 
 ### Next session
 
-Container is live on Unraid and fully operational. `merchants.json` populated (128 entries).
-382 transactions imported and pending review in Sure UI.
+**Immediate action required:** The Docker image on Unraid is stale — `config.ts`, `sure-client.ts`,
+and `index.ts` were modified in this session (2026-03-24). Rebuild and redeploy via Komodo before
+the next scheduled run at 08:00.
 
-Typical next-session tasks:
-- Review/accept the 382 transactions in Sure UI
-- Monitor the first scheduled run (`0 8 * * *`) via Telegram alert
+```bash
+# Push changes to Forgejo (triggers Komodo webhook → rebuild + redeploy)
+git add -A && git commit -m "refactor: remove sureAccountId auto-create code path" && git push
+```
+
+After redeployment, verify with a dry run:
+```bash
+docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
+```
+
+Ongoing:
 - Add more merchants to `merchants.json` as needed (auto-reloaded each run, no restart needed)
+- Monitor Telegram for the daily 08:00 run summary
 - If banks force 2FA: log in manually via the host browser under `browser-data/<companyId>/`
 
-### Normal operation
+### Normal operation commands
 
 ```bash
 # Dry run (scrape only, no Sure writes)

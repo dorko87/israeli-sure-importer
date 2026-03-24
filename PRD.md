@@ -128,7 +128,7 @@ User clones repo
     → container scrapes all configured banks
     → generates CSV per bank
     → posts CSV to Sure with PUBLISH=false
-    → log shows: "[Mizrahi Bank] Import status: complete — review in Sure UI"
+    → log shows: "[Mizrahi Bank] Import status: pending — review in Sure UI"
   → user opens Sure UI → Transactions → Imports
     → reviews pending import: checks dates, amounts, merchant names, notes
     → confirms import → transactions appear in Sure
@@ -144,7 +144,6 @@ User clones repo
 Cron fires at configured time (e.g. 08:00 Asia/Jerusalem)
   → container wakes, reads config + secrets
   → validates all secret files exist and are non-empty
-  → calls GET /api/v1/accounts → confirms Sure accounts exist
   → for each target in config.json (in sequence):
       → loads browser profile from BROWSER_DATA_DIR/<companyId>/
       → scrapes bank with per-bank TIMEOUT_MINUTES limit
@@ -239,6 +238,7 @@ User's bank password changed
 - `installments.number` — current installment number (e.g. 3)
 - `installments.total` — total installments in series (e.g. 12)
 - `status` — `"completed"` or `"pending"` from bank
+- `memo` — optional free-text from the bank; used in `notes` when no installments are present (e.g. Paybox/Bit: `"למי: Name, עבור: Purpose"`)
 
 **DeduplicationRecord** (persisted in `cache/state.db` via SQLite)
 - `key` — SHA-256 hash (primary or fallback key — see CLAUDE.md)
@@ -263,7 +263,7 @@ User's bank password changed
 config.json
   └── targets[]
         └── credentialSecrets → secrets/ files (runtime read)
-        └── sureAccountId → Sure account (GET /api/v1/accounts)
+        └── sureAccountId → Sure account UUID (created manually in Sure UI)
 
 Scraper run
   └── produces Transaction[]
