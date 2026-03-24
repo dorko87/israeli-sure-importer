@@ -1,0 +1,54 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":enableVulnerabilityAlertsWithLabel('security')",
+    ":preserveSemverRanges",
+    ":rebaseStalePrs"
+  ],
+  "assignees": [
+    "dorko87"
+  ],
+  "labels": [
+    "renovate",
+    "dependencies"
+  ],
+  "timezone": "Asia/Jerusalem",
+  "schedule": [
+    "before 6am"
+  ],
+  "prHourlyLimit": 0,
+  "packageRules": [
+    {
+      "description": "Label patch updates",
+      "matchUpdateTypes": ["patch"],
+      "addLabels": ["patch"]
+    },
+    {
+      "description": "Label minor updates",
+      "matchUpdateTypes": ["minor"],
+      "addLabels": ["minor"]
+    },
+    {
+      "description": "Label major updates",
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["major", "breaking-change"]
+    },
+    {
+      "description": "Automerge npm patch updates",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false,
+      "ignoreTests": true,
+      "addLabels": ["automerge"]
+    },
+    {
+      "description": "Manual review for Docker base image updates",
+      "matchManagers": ["dockerfile"],
+      "automerge": false
+    }
+  ]
+}
