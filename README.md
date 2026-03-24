@@ -157,7 +157,7 @@ Contains only structure — no credentials, no API keys. Safe to commit.
 | `BROWSER_DATA_DIR` | `/app/browser-data` | Per-bank browser profile path. Remove to use fresh session every run. |
 | `MERCHANTS_PATH` | `/app/logs/merchants.json` | Override path to `merchants.json`. |
 | `NOTIFY_ON_LOGIN_FAIL` | `"true"` | Telegram alert on bank login failure |
-| `NOTIFY_ON_SYNC_FAIL` | `"true"` | Telegram alert on sync failure and account-resolution failure. Note: slow-scrape warnings always fire regardless of this flag. |
+| `NOTIFY_ON_SYNC_FAIL` | `"true"` | Telegram alert on sync failure. Note: slow-scrape warnings always fire regardless of this flag. |
 | `NOTIFY_ERROR_THRESHOLD` | `0` | Telegram alert when failed tx count ≥ this |
 | `NOTIFY_ON_SUCCESS` | `"false"` | Telegram summary on successful sync |
 | `CACHE_DIR` | `/app/cache` | Override `state.db` directory |
@@ -225,7 +225,7 @@ identical and all but the first would be incorrectly skipped.
 | Sure field | Content | Example |
 |------------|---------|---------|
 | **Name** | Clean merchant name (from `merchants.json` if matched, otherwise raw description). No installment info — keeps Sure's Rules engine working correctly. | `קאנטרי קריית טבעון` |
-| **Notes** | Additional context only — never duplicates what is already in Name. Plain transaction with no merchant match: empty. Plain transaction with merchant match: raw bank description (audit trail). Installment: installment label (`תשלום N מתוך M`) optionally followed by raw description if a merchant match was found. | `תשלום 3 מתוך 12 \| קאנטרי קריית טבעון` |
+| **Notes** | Additional context only — never duplicates what is already in Name. Plain transaction with no merchant match and no memo: empty. Plain transaction with merchant match: raw bank description (audit trail). Transfer transaction with bank memo (Paybox, Bit, etc.): memo text e.g. `"למי: Name, עבור: Purpose"`. Installment: installment label (`תשלום N מתוך M`) optionally followed by raw description if a merchant match was found. | `תשלום 3 מתוך 12 \| קאנטרי קריית טבעון` |
 
 ---
 
