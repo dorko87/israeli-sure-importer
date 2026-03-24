@@ -190,19 +190,40 @@ would break rule matching across the series.
 `notes` must only contain information that is **not already present in `name`**.
 If it would just repeat `name`, it is left empty.
 
-| Scenario | `name` | `notes` |
-|----------|--------|---------|
-| No installments, no merchant match | raw description | `""` (empty) |
-| No installments, merchant match found | clean name e.g. `"Rami Levy"` | raw description (audit trail) |
-| Installments, no merchant match | raw description | `"תשלום N מתוך M"` (label only) |
-| Installments, merchant match found | clean name | `"תשלום N מתוך M \| raw description"` |
+| installments? | merchant match? | memo? | `notes` result |
+|:---:|:---:|:---:|---|
+| — | — | — | `""` (empty) |
+| — | — | ✓ | `memo` |
+| — | ✓ | — | raw description (audit trail) |
+| — | ✓ | ✓ | `raw description \| memo` |
+| ✓ | — | — | `"תשלום N מתוך M"` |
+| ✓ | — | ✓ | `"תשלום N מתוך M"` (memo skipped — see below) |
+| ✓ | ✓ | — | `"תשלום N מתוך M \| raw description"` |
+| ✓ | ✓ | ✓ | `"תשלום N מתוך M \| raw description"` (memo skipped) |
+
+### `memo` from the scraper
+
+The `israeli-bank-scrapers` library returns an optional `memo` field on each transaction.
+When present and when the transaction has **no installments**, `memo` is appended to `notes`.
+
+**Why skipped when installments exist:** Max populates `memo` with the installment label
+(`"תשלום X מתוך Y"`) — identical to the label generated from `tx.installments`. Including
+it would produce duplicate content in notes.
+
+**Typical content by bank:**
+- Max transfer transactions (Paybox, Bit, etc.): `"למי: Recipient Name, עבור: Purpose"`
+- Mizrahi transactions: structured bank fields (name, nature, account number)
 
 ### Real examples from Sure UI
 
 ```
-Regular transaction (no merchant match):
+Regular transaction (no merchant match, no memo):
   name:   עמלי
   notes:  (empty)
+
+Paybox transfer (no merchant match, memo present):
+  name:   PAYBOX
+  notes:  למי: Dorit Winer Cohen, עבור: אוכל לבאצ'י
 
 Installment, no merchant match:
   name:   קאנטרי קריית טבעון
