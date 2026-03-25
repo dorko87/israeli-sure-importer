@@ -13,3 +13,10 @@ secrets/*
 # User config — contains site-specific URLs, never credentials
 config.json
 .env
+
+# Internal AI context and session planning — not for public repo
+CLAUDE.md
+PRD.md
+renovate.json
+.claude/
+docs/superpowers/plans/
