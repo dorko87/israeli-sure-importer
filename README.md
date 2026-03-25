@@ -66,12 +66,30 @@ you actually have.
 
 ### 3. Create required directories
 
+Run this from the directory that contains `compose.yml`:
+
 ```bash
-mkdir -p /mnt/user/appdata/sure/israeli-sure-importer/{cache,browser-data,logs}
-chown -R 1000:1000 /mnt/user/appdata/sure/israeli-sure-importer/{cache,browser-data,logs}
+mkdir -p cache browser-data logs
+chown -R 1000:1000 cache browser-data logs
 ```
 
-### 4. Pull the image
+### 4. Deploy the compose file
+
+All volume mounts in `compose.yml` are relative paths, so `docker compose` must always
+be run from the directory that contains `compose.yml`. Your working directory should
+look like this:
+
+```
+israeli-sure-importer/
+├── compose.yml
+├── config.json          ← created in step 2
+├── secrets/             ← credentials from step 1
+├── cache/               ← created above
+├── browser-data/        ← created above
+└── logs/                ← created above
+```
+
+Pull the image:
 
 ```bash
 docker compose pull
@@ -84,7 +102,7 @@ is auto-published. Check the log output and the Sure UI before going further.
 
 ```bash
 docker compose run --rm israeli-sure-importer node dist/index.js --run-once
-tail -f /mnt/user/appdata/sure/israeli-sure-importer/logs/importer.log
+tail -f ./logs/importer.log
 ```
 
 Open Sure → Transactions → Imports → review the pending import → confirm it looks correct.
@@ -177,13 +195,12 @@ using fuzzy (contains) matching.
 ]
 ```
 
-**Runtime location:** `/mnt/user/appdata/sure/israeli-sure-importer/logs/merchants.json`
+**Runtime location:** `./logs/merchants.json`
 (served by the existing logs volume mount - no separate Docker mount needed)
 
-Copy the repo's `merchants.json` to that path on Unraid before starting the container:
+Copy the repo's `merchants.json` to your logs directory before starting the container:
 ```bash
-cp /path/to/repo/israeli-sure-importer/merchants.json \
-   /mnt/user/appdata/sure/israeli-sure-importer/logs/merchants.json
+cp merchants.json ./logs/merchants.json
 ```
 
 The file is re-read on every scheduled run - edit it directly on Unraid and changes
@@ -272,10 +289,10 @@ write to the same chronological stream.
 
 ```bash
 # Follow live
-tail -f /mnt/user/appdata/sure/israeli-sure-importer/logs/importer.log
+tail -f ./logs/importer.log
 
 # Last 100 lines
-tail -100 /mnt/user/appdata/sure/israeli-sure-importer/logs/importer.log
+tail -100 ./logs/importer.log
 ```
 
 Rotated daily, 14 days retained. Archived files: `importer-2026-03-16.log` etc.
@@ -315,7 +332,7 @@ If 2FA fires on a scheduled run:
 
 To force a fresh session (clears saved cookies):
 ```bash
-rm -rf /mnt/user/appdata/sure/israeli-sure-importer/browser-data/<companyId>
+rm -rf ./browser-data/<companyId>
 ```
 
 ---
