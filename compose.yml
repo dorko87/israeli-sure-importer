@@ -59,6 +59,6 @@ services:
       # Logs
       - ./logs:/app/logs
 
-    # No ports — manual triggers via docker exec only:
+    # Manual triggers via docker exec only:
     #   docker exec israeli-sure-importer node dist/index.js --run-once
     #   docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
