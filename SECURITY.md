@@ -19,7 +19,7 @@ You can expect an acknowledgement within 48 hours and a status update within 7 d
 
 ## Scope
 
-This project runs entirely on your own hardware — no data is sent to third parties
+This project runs entirely on your own hardware - no data is sent to third parties
 except the Israeli banks being scraped and Telegram (for alerts). The attack surface
 is limited to:
 
