@@ -32,87 +32,112 @@ no cloud, no third-party services.
 
 ## Quick Start
 
-### 1. Create your secret files
+### 1. Prerequisites — before you start
 
-Create one file per credential. Each file contains the raw value only - no quotes,
-no trailing newline. Set `chmod 400` on all files.
+Make sure you have the following ready before touching a terminal:
+
+- [ ] A running [Sure Finance](https://github.com/we-promise/sure) instance and its URL
+      (e.g. `http://sure:3000`)
+- [ ] A Sure API key — Sure UI → Settings → API Keys → New Key
+- [ ] Your bank login credentials (username + password for each account you want to import)
+- [ ] *(Optional)* A Telegram bot token + your chat ID for failure alerts
+      - Bot token: create via [@BotFather](https://t.me/BotFather) on Telegram
+      - Chat ID: send any message to your bot, then open
+        `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `"chat"."id"`
+- [ ] A Sure account UUID for **each** bank — create them in Sure UI first:
+      Sure → Accounts → New Account → select **Cash** (bank account) or **Credit Card**
+      → open the account → Settings → copy the UUID
+
+### 2. Clone the repo
 
 ```bash
-# Sure API key
-echo -n "your-sure-api-key" > secrets/sure_api_key
+git clone https://github.com/dorko87/israeli-sure-importer.git
+cd israeli-sure-importer
+```
 
-# Telegram
-echo -n "123456:ABC-DEF..." > secrets/telegram_bot_token
+All subsequent steps run from this directory.
 
-# Bank credentials - one file per value
-echo -n "myusername"   > secrets/leumi_username
-echo -n "mypassword"   > secrets/leumi_password
-echo -n "myusername"   > secrets/max_username
-echo -n "mypassword"   > secrets/max_password
+### 3. Create your secret files
 
-# Set permissions on all secret files
+One file per credential — raw value only, no quotes, no trailing newline.
+
+```bash
+printf '%s' "your-sure-api-key"  > secrets/sure_api_key
+printf '%s' "123456:ABC-DEF..."  > secrets/telegram_bot_token  # skip if no Telegram
+printf '%s' "myusername"         > secrets/leumi_username
+printf '%s' "mypassword"         > secrets/leumi_password
+printf '%s' "myusername"         > secrets/max_username
+printf '%s' "mypassword"         > secrets/max_password
+
 chmod 400 secrets/*
 ```
 
-### 2. Create your config
+Add one file per credential for each bank you configure. See `secrets/README.md` for
+the full list of credential field names per bank.
+
+### 4. Create your config
 
 ```bash
 cp config.example.json config.json
 ```
 
-Edit `config.json` - set `sure.baseUrl` and add the banks you use. See the
-[Configuration](#configuration) section below. You only need entries for the banks
-you actually have.
+Edit `config.json`:
+- Set `sure.baseUrl` to your Sure instance URL
+- Remove the example targets and add only the banks you use
+- Paste each Sure account UUID (from Prerequisites) into the matching `sureAccountId` field
 
-### 3. Create required directories
+See [Configuration → config.json](#configjson) for the full schema.
 
-Run this from the directory that contains `compose.yml`:
+### 5. Set up directories and copy merchants.json
 
 ```bash
 mkdir -p cache browser-data logs
 chown -R 1000:1000 cache browser-data logs
+cp merchants.json logs/merchants.json
 ```
 
-### 4. Deploy the compose file
+`merchants.json` maps raw bank descriptions to clean merchant names in Sure.
+Edit `logs/merchants.json` at any time — it is re-read on every run without a restart.
 
-All volume mounts in `compose.yml` are relative paths, so `docker compose` must always
-be run from the directory that contains `compose.yml`. Your working directory should
-look like this:
+### 6. Configure compose.yml
 
-```
-israeli-sure-importer/
-├── compose.yml
-├── config.json          ← created in step 2
-├── secrets/             ← credentials from step 1
-├── cache/               ← created above
-├── browser-data/        ← created above
-└── logs/                ← created above
+Open `compose.yml` and set your Telegram chat ID (if using Telegram):
+
+```yaml
+TELEGRAM_CHAT_ID: "123456789"   # paste your chat ID here
 ```
 
-Pull the image:
+All other defaults are safe for first use. See
+[compose.yml environment variables](#composeyml-environment-variables) for the full reference.
+
+### 7. Test run
+
+Pull the image and run once — transactions land in Sure's **review queue**, nothing
+is auto-published:
 
 ```bash
 docker compose pull
-```
-
-### 5. Test run
-
-Runs once with `PUBLISH=false` - transactions land in Sure's review queue, nothing
-is auto-published. Check the log output and the Sure UI before going further.
-
-```bash
 docker compose run --rm israeli-sure-importer node dist/index.js --run-once
 tail -f ./logs/importer.log
 ```
 
+**What success looks like in the log:**
+```
+[INFO]  [leumi] Scraped 28 tx → 9 new | CSV posted → import_id=abc123
+[INFO]  [leumi] Import status: pending — review in Sure UI
+[INFO]  === Run finished ===
+```
+
 Open Sure → Transactions → Imports → review the pending import → confirm it looks correct.
 
-### 6. Validate, then enable auto-publish
+If you see errors, set `LOG_LEVEL: debug` in `compose.yml` and re-run for full detail.
 
-Once you're satisfied with the first import:
+### 8. Go live
 
-1. Open `compose.yml` and change `PUBLISH: "false"` → `PUBLISH: "true"`
-2. Start the container on schedule:
+Once you're happy with the first import:
+
+1. Open `compose.yml` and set `PUBLISH: "true"` (auto-process future imports)
+2. Start on schedule:
 
 ```bash
 docker compose up -d
