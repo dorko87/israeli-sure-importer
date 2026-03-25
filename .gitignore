@@ -13,3 +13,5 @@ secrets/*
 # User config — contains site-specific URLs, never credentials
 config.json
 .env
+
+claude.md
