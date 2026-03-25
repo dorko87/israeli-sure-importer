@@ -86,7 +86,7 @@ Edit `config.json`:
 - Remove the example targets and add only the banks you use
 - Paste each Sure account UUID (from Prerequisites) into the matching `sureAccountId` field
 
-See [Configuration → config.json](#configjson) for the full schema.
+See the [Configuration](#configuration) section below for the full schema.
 
 ### 5. Set up directories and copy merchants.json
 
@@ -107,8 +107,8 @@ Open `compose.yml` and set your Telegram chat ID (if using Telegram):
 TELEGRAM_CHAT_ID: "123456789"   # paste your chat ID here
 ```
 
-All other defaults are safe for first use. See
-[compose.yml environment variables](#composeyml-environment-variables) for the full reference.
+All other defaults are safe for first use. See the [Configuration](#configuration) section
+below for the full reference.
 
 ### 7. Test run
 
