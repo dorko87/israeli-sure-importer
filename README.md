@@ -354,7 +354,9 @@ Store master copies in Vaultwarden. To rotate a credential:
 
 **Import lands in Sure but shows 0 valid rows**
 - Run with `--dry-run` and check the log for the CSV content being generated
-- Verify `date_format` in the Sure import UI matches `%d/%m/%Y`
+- Verify your Sure date format is set to `DD/MM/YYYY` (Sure → Settings → Preferences)
+
+![Sure Preferences — Date format must be DD/MM/YYYY](docs/date-format-preferences.png)
 
 **Transactions duplicating across runs**
 - Check `cache/state.db` exists and the volume mount is correct
