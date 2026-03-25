@@ -297,6 +297,8 @@ When `PUBLISH=false` (recommended for first use):
 5. Confirm → transactions are published to your account
 6. Once you trust the data: set `PUBLISH=true` in `compose.yml` for hands-free imports
 
+![Sure UI — Imports review queue](docs/sure-imports.png)
+
 ---
 
 ## 2FA and Session Persistence
