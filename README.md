@@ -273,23 +273,28 @@ identical and all but the first would be incorrectly skipped.
 
 ## Supported Banks
 
+All banks supported by [israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers) are available.
+**Tested end-to-end:** Mizrahi Bank and Max (Leumi Card). Others should work but are untested.
+
 | Bank / Card | `companyId` | Credential fields |
 |-------------|-------------|-------------------|
 | Bank Hapoalim | `hapoalim` | `userCode`, `password` |
 | Bank Leumi | `leumi` | `username`, `password` |
 | Discount Bank | `discount` | `id`, `password`, `num` |
 | Mercantile Bank | `mercantile` | `id`, `password`, `num` |
-| Mizrahi Bank | `mizrahi` | `username`, `password` |
+| Mizrahi Bank ✓ | `mizrahi` | `username`, `password` |
 | Otsar Hahayal | `otsarHahayal` | `username`, `password` |
 | Beinleumi | `beinleumi` | `username`, `password` |
 | Massad | `massad` | `username`, `password` |
 | Union Bank | `union` | `username`, `password` |
 | Yahav | `yahav` | `username`, `password`, `nationalId` |
 | Visa Cal | `visaCal` | `username`, `password` |
-| Max (Leumi Card) | `max` | `username`, `password` |
+| Max (Leumi Card) ✓ | `max` | `username`, `password` |
 | Isracard | `isracard` | `id`, `card6Digits`, `password` |
 | Amex | `amex` | `username`, `card6Digits`, `password` |
 | OneZero (experimental) | `oneZero` | `email`, `password` |
+
+✓ Tested end-to-end in production
 
 ---
 
