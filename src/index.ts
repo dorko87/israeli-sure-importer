@@ -183,18 +183,6 @@ async function processTarget(
     totalNewTx += txSuccessCount;
     totalTxFailed += txFailCount;
 
-    appendHistory({
-      timestamp: new Date().toISOString(),
-      bank: target.name,
-      companyId: target.companyId,
-      txSent: txSuccessCount,
-      txFailed: txFailCount,
-      status: txFailCount > 0 ? 'partial' : 'complete',
-      dryRun: false,
-    });
-
-    if (txFailCount > 0) await notifyErrorThreshold(target.name, txFailCount);
-
     // Reconciliation — post valuation when target.reconcile and balance is available
     if (target.reconcile && account.balance != null) {
       const todayISO = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });
@@ -203,6 +191,20 @@ async function processTarget(
       didReconcile = true;
     }
   }
+
+  // Post-loop: write history and notify of failures (aggregate across all accounts)
+  if (!dryRun && (totalNewTx > 0 || totalTxFailed > 0)) {
+    appendHistory({
+      timestamp: new Date().toISOString(),
+      bank: target.name,
+      companyId: target.companyId,
+      txSent: totalNewTx,
+      txFailed: totalTxFailed,
+      status: totalTxFailed > 0 ? 'partial' : 'complete',
+      dryRun: false,
+    });
+  }
+  if (totalTxFailed > 0) await notifyErrorThreshold(target.name, totalTxFailed);
 
   return {
     bank: target.name,
