@@ -12,14 +12,12 @@
     "ajv": "^8.12.0",
     "ajv-formats": "^3.0.1",
     "axios": "^1.7.0",
-    "better-sqlite3": "^9.4.3",
     "israeli-bank-scrapers": "^6.7.1",
     "node-cron": "^3.0.3",
     "winston": "^3.13.0",
     "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.8",
     "@types/node": "^20.14.0",
     "@types/node-cron": "^3.0.1",
     "typescript": "^5.5.0"
