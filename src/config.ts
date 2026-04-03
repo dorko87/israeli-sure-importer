@@ -4,13 +4,18 @@ import * as fs from 'fs';
 
 export interface SureConfig {
   baseUrl: string;
+  createMissingTags?: boolean;
 }
 
 export interface Target {
   name: string;
   companyId: string;
   credentialSecrets: Record<string, string>;
-  sureAccountId: string;
+  sureAccountId?: string;
+  sureAccountName?: string;
+  reconcile?: boolean;
+  tags?: string[];
+  categoryMap?: Record<string, string>;
 }
 
 export interface Config {
@@ -29,6 +34,7 @@ const schema = {
       additionalProperties: false,
       properties: {
         baseUrl: { type: 'string', minLength: 1 },
+        createMissingTags: { type: 'boolean' },
       },
     },
     targets: {
@@ -36,8 +42,12 @@ const schema = {
       minItems: 1,
       items: {
         type: 'object',
-        required: ['name', 'companyId', 'credentialSecrets', 'sureAccountId'],
+        required: ['name', 'companyId', 'credentialSecrets'],
         additionalProperties: false,
+        oneOf: [
+          { required: ['sureAccountId'], not: { required: ['sureAccountName'] } },
+          { required: ['sureAccountName'], not: { required: ['sureAccountId'] } },
+        ],
         properties: {
           name: { type: 'string', minLength: 1 },
           companyId: { type: 'string', minLength: 1 },
@@ -47,6 +57,16 @@ const schema = {
             minProperties: 1,
           },
           sureAccountId: { type: 'string', minLength: 1 },
+          sureAccountName: { type: 'string', minLength: 1 },
+          reconcile: { type: 'boolean' },
+          tags: {
+            type: 'array',
+            items: { type: 'string', minLength: 1 },
+          },
+          categoryMap: {
+            type: 'object',
+            additionalProperties: { type: 'string', minLength: 1 },
+          },
         },
       },
     },
