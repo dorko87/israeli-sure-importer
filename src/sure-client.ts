@@ -1,23 +1,49 @@
 import axios, { type AxiosInstance } from 'axios';
 import logger from './logger';
 
+// ── Interfaces ────────────────────────────────────────────────────────────────
+
 export interface SureAccount {
+  id: string;
+  name: string;
+  balance?: number;
+}
+
+export interface SureCategory {
   id: string;
   name: string;
 }
 
-export interface ImportResult {
+export interface SureTag {
   id: string;
-  status: string;
-  rows_count?: number;
-  valid_rows_count?: number;
-  error?: string;
+  name: string;
 }
 
-const POLL_INTERVAL_MS = 3000;
-const POLL_MAX_ATTEMPTS = 60; // up to 3 minutes of polling
+export interface CreateTransactionInput {
+  account_id: string;
+  name: string;
+  notes: string;
+  date: string;         // ISO "2026-03-15"
+  amount: number;       // negative = expense
+  currency?: string;    // default "ILS"
+  category_id?: string;
+  tag_ids?: string[];
+}
+
+export interface CreateValuationInput {
+  account_id: string;
+  date: string;         // ISO "2026-04-03"
+  amount: number;
+}
+
+// ── Module state ──────────────────────────────────────────────────────────────
 
 let client: AxiosInstance | null = null;
+
+// In-memory caches — cleared at start of each run via clearEntityCaches()
+const accountCache = new Map<string, SureAccount>();
+const categoryCache = new Map<string, string | undefined>(); // name → id or undefined
+const tagCache = new Map<string, string>();                   // name → id
 
 export function initSureClient(baseUrl: string, apiKey: string): void {
   client = axios.create({
@@ -27,95 +53,197 @@ export function initSureClient(baseUrl: string, apiKey: string): void {
   });
 }
 
+export function clearEntityCaches(): void {
+  accountCache.clear();
+  categoryCache.clear();
+  tagCache.clear();
+}
+
 function getClient(): AxiosInstance {
   if (!client) throw new Error('Sure client not initialized — call initSureClient() first');
   return client;
 }
 
-export async function getAccounts(): Promise<SureAccount[]> {
-  const res = await getClient().get<{ accounts: SureAccount[] }>('/api/v1/accounts');
-  return res.data.accounts;
+// ── Pagination helper ─────────────────────────────────────────────────────────
+
+/**
+ * Fetches all pages from a paginated Sure API endpoint.
+ * itemsKey is the envelope field name (e.g. "accounts", "transactions", "tags").
+ * An empty first page returns [] — not an error.
+ * If the envelope key differs from expectation, change itemsKey at the call site.
+ */
+async function listPaginatedCollection<T>(
+  path: string,
+  itemsKey: string,
+  params: Record<string, string> = {}
+): Promise<T[]> {
+  const results: T[] = [];
+  let page = 1;
+
+  for (;;) {
+    const res = await getClient().get<Record<string, T[]>>(path, {
+      params: { ...params, page: String(page), per_page: '500' },
+    });
+
+    const items: T[] = res.data[itemsKey] ?? [];
+    if (items.length === 0) break;
+
+    results.push(...items);
+    page++;
+  }
+
+  return results;
 }
 
-export interface PostImportParams {
-  accountId: string;
-  csv: string;
-  publish: string;
+// ── Constants for dedup ───────────────────────────────────────────────────────
+
+const IMPORT_MARKER = 'Imported by israeli-banks-sure-importer';
+
+function extractSourceId(notes: string | undefined): string | undefined {
+  if (!notes?.includes(IMPORT_MARKER)) return undefined;
+  const match = /^Source ID: (.+)$/m.exec(notes);
+  return match?.[1]?.trim();
 }
 
-export async function postImport(params: PostImportParams): Promise<string> {
-  const body = {
-    raw_file_content: params.csv,
-    type: 'TransactionImport',
-    account_id: params.accountId,
-    publish: params.publish,
-    date_col_label: 'date',
-    amount_col_label: 'amount',
-    name_col_label: 'name',
-    notes_col_label: 'notes',
-    date_format: '%d/%m/%Y',
-    number_format: '1,234.56',
-    signage_convention: 'inflows_positive',
-    col_sep: ',',
-  };
+// ── Public API ────────────────────────────────────────────────────────────────
 
-  const res = await getClient().post<{ data: { id: string } }>('/api/v1/imports', body);
+/**
+ * Resolves a Sure account by UUID (pass-through) or display name (lookup).
+ * Result is cached for the run duration.
+ */
+export async function resolveAccount(idOrName: string): Promise<SureAccount> {
+  if (accountCache.has(idOrName)) return accountCache.get(idOrName)!;
+
+  const accounts = await listPaginatedCollection<SureAccount>('/api/v1/accounts', 'accounts');
+
+  // UUID: find by id; name: find by name
+  const isUuid = /^[0-9a-f-]{36}$/i.test(idOrName);
+  const found = isUuid
+    ? accounts.find(a => a.id === idOrName)
+    : accounts.find(a => a.name === idOrName);
+
+  if (!found) throw new Error(`Sure account not found: "${idOrName}"`);
+
+  // Cache by both id and name for subsequent lookups
+  accountCache.set(found.id, found);
+  accountCache.set(found.name, found);
+  return found;
+}
+
+/**
+ * Fetches all previously-imported transaction IDs for the given Sure account.
+ * Searches only transactions containing the import marker in their notes.
+ * Result is NOT cached — called once per target account per run.
+ */
+export async function listImportedTransactionIds(accountId: string): Promise<Set<string>> {
+  interface SureTx { notes?: string }
+
+  const transactions = await listPaginatedCollection<SureTx>(
+    '/api/v1/transactions',
+    'transactions',
+    { account_id: accountId, search: IMPORT_MARKER }
+  );
+
+  const ids = new Set<string>();
+  for (const tx of transactions) {
+    const sid = extractSourceId(tx.notes);
+    if (sid) ids.add(sid);
+  }
+
+  logger.debug(`[sure-client] listImportedTransactionIds: found ${ids.size} existing sourceIds for account ${accountId}`);
+  return ids;
+}
+
+/**
+ * Resolves a Sure category UUID by display name.
+ * Returns undefined if not found — no auto-create for categories.
+ * Result is cached for the run duration.
+ */
+export async function resolveCategory(name: string): Promise<string | undefined> {
+  if (categoryCache.has(name)) return categoryCache.get(name);
+
+  const categories = await listPaginatedCollection<SureCategory>('/api/v1/categories', 'categories');
+  const found = categories.find(c => c.name === name);
+  const id = found?.id;
+
+  categoryCache.set(name, id);
+
+  if (!id) logger.debug(`[sure-client] Category not found in Sure: "${name}"`);
+  return id;
+}
+
+/**
+ * Returns tag UUIDs for the given names.
+ * If createMissing=true, creates missing tags via POST /api/v1/tags (non-fatal on failure).
+ * Results are cached for the run duration.
+ */
+export async function ensureTags(names: string[], createMissing: boolean): Promise<string[]> {
+  if (names.length === 0) return [];
+
+  // Load all existing tags once (cached implicitly via tagCache after first call)
+  if (tagCache.size === 0) {
+    const tags = await listPaginatedCollection<SureTag>('/api/v1/tags', 'tags');
+    for (const tag of tags) tagCache.set(tag.name, tag.id);
+  }
+
+  const ids: string[] = [];
+
+  for (const name of names) {
+    if (tagCache.has(name)) {
+      ids.push(tagCache.get(name)!);
+      continue;
+    }
+
+    if (!createMissing) {
+      logger.warn(`[sure-client] Tag not found in Sure and createMissingTags=false: "${name}" — skipping`);
+      continue;
+    }
+
+    try {
+      const res = await getClient().post<{ data: SureTag }>('/api/v1/tags', { name });
+      const created = res.data.data;
+      tagCache.set(created.name, created.id);
+      ids.push(created.id);
+      logger.debug(`[sure-client] Created tag: "${name}" → ${created.id}`);
+    } catch (err) {
+      logger.warn(`[sure-client] Failed to create tag "${name}": ${String(err)} — skipping`);
+    }
+  }
+
+  return ids;
+}
+
+/**
+ * Creates a single transaction in Sure.
+ * Returns the created transaction ID.
+ *
+ * NOTE: The amount/type field shape needs verification on first run.
+ * Current impl uses Option B (absolute amount + transaction_type).
+ * If Sure uses signed amounts, switch to Option A: remove Math.abs and
+ * transaction_type, pass amount: input.amount directly.
+ */
+export async function createTransaction(input: CreateTransactionInput): Promise<string> {
+  const res = await getClient().post<{ data: { id: string } }>('/api/v1/transactions', {
+    account_id: input.account_id,
+    name: input.name,
+    notes: input.notes,
+    date: input.date,
+    amount: Math.abs(input.amount),
+    transaction_type: input.amount < 0 ? 'expense' : 'income',
+    currency: input.currency ?? 'ILS',
+    ...(input.category_id ? { category_id: input.category_id } : {}),
+    ...(input.tag_ids?.length ? { tag_ids: input.tag_ids } : {}),
+  });
   return res.data.data.id;
 }
 
-interface SureImportResponse {
-  data: {
-    id: string;
-    status: string;
-    error?: string;
-    stats?: {
-      rows_count?: number;
-      valid_rows_count?: number;
-    };
-  };
-}
-
-function parseImportResponse(d: SureImportResponse['data']): ImportResult {
-  return {
-    id: d.id,
-    status: d.status,
-    rows_count: d.stats?.rows_count,
-    valid_rows_count: d.stats?.valid_rows_count,
-    error: d.error,
-  };
-}
-
 /**
- * Single GET — returns the import status immediately, unconditionally.
- * Use this when PUBLISH=false (review queue): Sure keeps the import in
- * "pending" permanently until the user confirms in the UI.
+ * Creates a valuation entry for balance reconciliation.
  */
-export async function checkImport(importId: string): Promise<ImportResult> {
-  const res = await getClient().get<SureImportResponse>(`/api/v1/imports/${importId}`);
-  return parseImportResponse(res.data.data);
-}
-
-/**
- * Polls GET /api/v1/imports/:id until status is no longer pending or importing.
- * Use this when PUBLISH=true (auto-process): Sure transitions pending → importing → complete.
- * Throws if the import does not settle within POLL_MAX_ATTEMPTS × POLL_INTERVAL_MS.
- */
-export async function pollImport(importId: string): Promise<ImportResult> {
-  const pending = new Set(['pending', 'importing']);
-
-  for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
-    const res = await getClient().get<SureImportResponse>(`/api/v1/imports/${importId}`);
-    const result = parseImportResponse(res.data.data);
-
-    if (!pending.has(result.status)) {
-      return result;
-    }
-
-    logger.debug(`[import ${importId}] status=${result.status} — polling (attempt ${attempt + 1}/${POLL_MAX_ATTEMPTS})`);
-    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
-  }
-
-  throw new Error(
-    `Import ${importId} did not complete within ${POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000}s`
-  );
+export async function createValuation(input: CreateValuationInput): Promise<void> {
+  await getClient().post('/api/v1/valuations', {
+    account_id: input.account_id,
+    date: input.date,
+    amount: input.amount,
+  });
 }
