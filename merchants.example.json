@@ -1,0 +1,16 @@
+[
+  { "pattern": "ALIEXPRESS",              "name": "AliExpress" },
+  { "pattern": "APPLE.COM/BILL",          "name": "Apple" },
+  { "pattern": "SPOTIFY",                "name": "Spotify" },
+  { "pattern": "NETFLIX",                "name": "Netflix" },
+  { "pattern": "AMAZON",                "name": "Amazon" },
+  { "pattern": "GOOGLE",                "name": "Google" },
+  { "pattern": "FACEBOOK",              "name": "Facebook" },
+  { "pattern": "MICROSOFT",             "name": "Microsoft" },
+  { "pattern": "UBER",                  "name": "Uber" },
+  { "pattern": "AIRBNB",                "name": "Airbnb" },
+  { "pattern": "PAYPAL",                "name": "PayPal" },
+  { "pattern": "ADOBE",                 "name": "Adobe" },
+  { "pattern": "SALESFORCE",            "name": "Salesforce" },
+  { "pattern": "INTUIT",                "name": "Intuit" }
+]
