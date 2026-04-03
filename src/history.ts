@@ -6,11 +6,11 @@ const HISTORY_PATH = process.env.HISTORY_PATH ?? path.join('/app/logs', 'import_
 
 export interface HistoryEntry {
   timestamp: string;       // ISO 8601
-  bank: string;            // target.name (human label)
+  bank: string;            // target.name
   companyId: string;       // target.companyId
-  importId: string | null; // null on dry run
-  rowsSent: number;
-  status: string;          // 'complete' | 'pending' | 'failed' | 'dry_run' | 'error'
+  txSent: number;          // transactions successfully posted (0 on dry run = would-be count)
+  txFailed: number;        // transactions that failed to post (0 on dry run)
+  status: string;          // 'complete' | 'partial' | 'dry_run' | 'error'
   dryRun: boolean;
 }
 
