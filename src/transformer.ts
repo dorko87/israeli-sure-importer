@@ -1,169 +1,154 @@
 import type { Transaction } from './types';
-import { computeKey, has } from './state';
+import { IMPORT_MARKER } from './sure-client';
 import { findMatch } from './merchants';
 import logger from './logger';
 
-export interface CsvRow {
-  date: string;
-  amount: number;
-  name: string;
-  notes: string;
-}
+// ── Output types ──────────────────────────────────────────────────────────────
 
-export interface TransformedTransaction {
-  row: CsvRow;
-  dedupKey: string;
+export interface ReadyTransaction {
+  name: string;           // clean merchant name or raw description
+  notes: string;          // full structured notes block
+  date: string;           // ISO "2026-03-15"
+  amount: number;         // chargedAmount (negative = expense)
+  currency: string;       // "ILS" or original currency
+  sourceId: string;       // dedup key embedded in notes
+  txCategory?: string;    // raw scraper category — resolved to UUID in index.ts
 }
 
 export interface TransformResult {
-  rows: TransformedTransaction[];
+  rows: ReadyTransaction[];
   zeroAmountSkipped: number;
   futureSkipped: number;
   alreadySeenSkipped: number;
   pendingSkipped: number;
 }
 
-/**
- * Converts ISO date string to DD/MM/YYYY (the format Sure's CSV import expects).
- * Input examples: "2026-03-15" or "2026-03-15T00:00:00.000Z"
- */
-function formatDate(isoDate: string): string {
-  // Parse only the date portion to avoid timezone shifts
-  const datePart = isoDate.substring(0, 10); // "2026-03-15"
-  const [year, month, day] = datePart.split('-');
-  return `${day}/${month}/${year}`;
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Builds the stable sourceId for a transaction. */
+function buildSourceId(
+  companyId: string,
+  accountNumber: string,
+  tx: Transaction
+): string {
+  const id = tx.identifier != null ? String(tx.identifier) : null;
+  if (id && id !== '0') {
+    return `${companyId}:${accountNumber}:${id}`;
+  }
+  // Fallback: plain readable string (no hashing — must be parseable from notes)
+  const datePart = tx.date.substring(0, 10);
+  const fallback = [datePart, tx.chargedAmount, tx.description, tx.memo ?? ''].join(':');
+  return `${companyId}:${accountNumber}:${fallback}`;
 }
 
-/**
- * Builds the notes column value. Notes should only contain information that is
- * NOT already present in the name column — no redundant duplication.
- *
- * memo is included only when tx.installments is absent. When installments exist,
- * Max's scraper sets memo to the installment label ("תשלום X מתוך Y"), which is
- * identical to the label we generate from tx.installments — so we skip it.
- *
- * | installments? | merchant match? | memo?  | notes result                       |
- * |:---:|:---:|:---:|------------------------------------------------------------|
- * |       —       |       —         |   —    | "" (empty)                         |
- * |       —       |       —         |   ✓    | memo                               |
- * |       —       |       ✓         |   —    | raw description (audit trail)      |
- * |       —       |       ✓         |   ✓    | raw description | memo             |
- * |       ✓       |       —         |   —    | "תשלום N מתוך M"                    |
- * |       ✓       |       —         |   ✓    | "תשלום N מתוך M" (memo skipped)     |
- * |       ✓       |       ✓         |   —    | "תשלום N מתוך M | raw description"  |
- * |       ✓       |       ✓         |   ✓    | "תשלום N מתוך M | raw description"  |
- */
-function buildNotes(tx: Transaction, resolvedName: string): string {
+/** Builds the userContent portion (top lines before the metadata block). */
+function buildUserContent(tx: Transaction, resolvedName: string): string {
   const hasOverride = resolvedName !== tx.description;
   const label = tx.installments
     ? `תשלום ${tx.installments.number} מתוך ${tx.installments.total}`
     : null;
-  // Skip memo when installments are present — Max sets memo to the installment label,
-  // which is identical to the label we already generate from tx.installments.
+  // Skip memo when installments are present — Max sets memo to the installment label
   const memo = !tx.installments && tx.memo?.trim() ? tx.memo.trim() : null;
 
   if (label && hasOverride) return `${label} | ${tx.description}`;
-  if (label)                return label;
-  if (hasOverride && memo)  return `${tx.description} | ${memo}`;
-  if (hasOverride)          return tx.description;
-  if (memo)                 return memo;
+  if (label)               return label;
+  if (hasOverride && memo) return `${tx.description} | ${memo}`;
+  if (hasOverride)         return tx.description;
+  if (memo)                return memo;
   return '';
 }
 
-/**
- * Wraps a CSV field value in double-quotes if it contains commas, quotes, or newlines.
- * Inner double-quotes are escaped by doubling them.
- */
-function csvEscape(val: string | number): string {
-  const str = String(val);
-  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-    return `"${str.replace(/"/g, '""')}"`;
+/** Builds the full notes string including the structured metadata block. */
+function buildNotes(
+  tx: Transaction,
+  resolvedName: string,
+  companyId: string,
+  accountNumber: string,
+  sourceId: string
+): string {
+  const userContent = buildUserContent(tx, resolvedName);
+  const datePart = tx.date.substring(0, 10);
+
+  const metaLines: string[] = [
+    IMPORT_MARKER,
+    `Source ID: ${sourceId}`,
+    `Source bank: ${companyId}`,
+    `Source account: ${accountNumber}`,
+    `Processed date: ${datePart}`,
+  ];
+
+  if (tx.installments) {
+    metaLines.push(`Installment: ${tx.installments.number}/${tx.installments.total}`);
   }
-  return str;
+
+  if (tx.originalCurrency && tx.originalCurrency !== 'ILS' && tx.originalAmount != null) {
+    metaLines.push(`Original amount: ${tx.originalAmount} ${tx.originalCurrency}`);
+  }
+
+  const metaBlock = metaLines.join('\n');
+
+  // If there is user content, separate it from the metadata with a blank line.
+  // If there is no user content, start directly with the metadata (no leading blank line).
+  return userContent ? `${userContent}\n\n${metaBlock}` : metaBlock;
 }
+
+// ── Main export ───────────────────────────────────────────────────────────────
 
 /**
  * Filters and transforms scraped transactions for a single bank account.
  *
  * Filters applied (in order):
- *   1. Zero-amount — unconditionally dropped (chargedAmount === 0)
- *   2. Future-date — unconditionally dropped (date > today in Asia/Jerusalem)
- *   3. Pending — dropped unless importPending is true
- *   4. Deduplication — dropped if key already in state.db
- *
- * Output rows use:
- *   name  = merchants.json match OR raw description (never includes installment info)
- *   notes = installment label (if any) + " | " + raw description
+ *   1. Zero-amount  — unconditionally dropped (chargedAmount === 0)
+ *   2. Future-date  — unconditionally dropped (date > today Asia/Jerusalem)
+ *   3. Pending      — dropped unless importPending is true
+ *   4. Dedup        — dropped if sourceId already in existingIds (Sure-side set)
  */
 export function transform(
   txns: Transaction[],
   accountNumber: string,
-  bank: string,
-  importPending: boolean
+  companyId: string,
+  importPending: boolean,
+  existingIds: Set<string>
 ): TransformResult {
   let zeroAmountSkipped = 0;
   let futureSkipped = 0;
   let alreadySeenSkipped = 0;
   let pendingSkipped = 0;
-  const rows: TransformedTransaction[] = [];
+  const rows: ReadyTransaction[] = [];
 
-  // Today's date in Asia/Jerusalem as ISO string "YYYY-MM-DD" — used for future-date filter.
-  // 'sv-SE' locale reliably produces ISO format without any extra dependencies.
   const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });
 
   for (const tx of txns) {
-    // 1. Unconditional zero-amount filter
-    if (tx.chargedAmount === 0) {
-      zeroAmountSkipped++;
-      continue;
-    }
+    // 1. Zero-amount filter
+    if (tx.chargedAmount === 0) { zeroAmountSkipped++; continue; }
 
-    // 2. Future-date filter — drop transactions dated after today (Israel timezone).
-    // Credit cards (e.g. Max) return upcoming scheduled charges; these are not settled yet.
-    const txDateStr = tx.date.substring(0, 10); // "2026-03-31" from any ISO string
-    if (txDateStr > todayStr) {
-      futureSkipped++;
-      continue;
-    }
+    // 2. Future-date filter
+    if (tx.date.substring(0, 10) > todayStr) { futureSkipped++; continue; }
 
     // 3. Pending filter
-    if (tx.status === 'pending' && !importPending) {
-      pendingSkipped++;
-      continue;
-    }
+    if (tx.status === 'pending' && !importPending) { pendingSkipped++; continue; }
 
-    // 4. Deduplication
-    const dedupKey = computeKey(tx, accountNumber);
-    if (has(dedupKey)) {
-      alreadySeenSkipped++;
-      continue;
-    }
+    // 4. Dedup
+    const sourceId = buildSourceId(companyId, accountNumber, tx);
+    if (existingIds.has(sourceId)) { alreadySeenSkipped++; continue; }
 
-    // Build CSV columns
     const name = findMatch(tx.description) ?? tx.description;
-    const notes = buildNotes(tx, name);
+    const notes = buildNotes(tx, name, companyId, accountNumber, sourceId);
+    const currency = tx.originalCurrency ?? 'ILS';
 
     rows.push({
-      row: { date: formatDate(tx.date), amount: tx.chargedAmount, name, notes },
-      dedupKey,
+      name,
+      notes,
+      date: tx.date.substring(0, 10),
+      amount: tx.chargedAmount,
+      currency,
+      sourceId,
+      txCategory: tx.type,
     });
   }
 
-  if (zeroAmountSkipped > 0) {
-    logger.debug(`[${bank}] Skipped ${zeroAmountSkipped} zero-amount transactions`);
-  }
-  if (futureSkipped > 0) {
-    logger.debug(`[${bank}] Skipped ${futureSkipped} future-dated transactions`);
-  }
+  if (zeroAmountSkipped > 0) logger.debug(`[${companyId}] Skipped ${zeroAmountSkipped} zero-amount transactions`);
+  if (futureSkipped > 0)     logger.debug(`[${companyId}] Skipped ${futureSkipped} future-dated transactions`);
 
   return { rows, zeroAmountSkipped, futureSkipped, alreadySeenSkipped, pendingSkipped };
-}
-
-/** Builds a CSV string from an array of rows. Header: date,amount,name,notes */
-export function buildCsv(rows: CsvRow[]): string {
-  const header = 'date,amount,name,notes';
-  const lines = rows.map(r =>
-    [csvEscape(r.date), csvEscape(r.amount), csvEscape(r.name), csvEscape(r.notes)].join(',')
-  );
-  return [header, ...lines].join('\n') + '\n';
 }
