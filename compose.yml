@@ -19,8 +19,6 @@ services:
       DAYS_BACK: "30"
       # Per-bank timeout in minutes (also sets Puppeteer protocolTimeout)
       TIMEOUT_MINUTES: "10"
-      # "false" = import goes to Sure review queue (recommended); "true" = auto-process
-      PUBLISH: "false"
       # "true" = skip all Sure API writes (scrape and log only)
       DRY_RUN: "false"
       # "true" = include bank-pending transactions
@@ -52,8 +50,6 @@ services:
       - ./config.json:/app/config.json:ro
       # Secrets (read-only — one file per credential)
       - ./secrets:/run/secrets:ro
-      # State (deduplication SQLite DB)
-      - ./cache:/app/cache
       # Chromium browser profiles (session persistence / 2FA)
       - ./browser-data:/app/browser-data
       # Logs
