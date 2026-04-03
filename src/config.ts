@@ -45,8 +45,8 @@ const schema = {
         required: ['name', 'companyId', 'credentialSecrets'],
         additionalProperties: false,
         oneOf: [
-          { required: ['sureAccountId'], not: { required: ['sureAccountName'] } },
-          { required: ['sureAccountName'], not: { required: ['sureAccountId'] } },
+          { required: ['sureAccountId'] },
+          { required: ['sureAccountName'] },
         ],
         properties: {
           name: { type: 'string', minLength: 1 },
@@ -56,7 +56,7 @@ const schema = {
             additionalProperties: { type: 'string' },
             minProperties: 1,
           },
-          sureAccountId: { type: 'string', minLength: 1 },
+          sureAccountId: { type: 'string', format: 'uuid' },
           sureAccountName: { type: 'string', minLength: 1 },
           reconcile: { type: 'boolean' },
           tags: {
