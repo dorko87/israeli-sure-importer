@@ -44,6 +44,7 @@ let client: AxiosInstance | null = null;
 const accountCache = new Map<string, SureAccount>();
 const categoryCache = new Map<string, string | undefined>(); // name → id or undefined
 const tagCache = new Map<string, string>();                   // name → id
+let tagCacheLoaded = false;
 
 export function initSureClient(baseUrl: string, apiKey: string): void {
   client = axios.create({
@@ -57,6 +58,7 @@ export function clearEntityCaches(): void {
   accountCache.clear();
   categoryCache.clear();
   tagCache.clear();
+  tagCacheLoaded = false;
 }
 
 function getClient(): AxiosInstance {
@@ -97,7 +99,7 @@ async function listPaginatedCollection<T>(
 
 // ── Constants for dedup ───────────────────────────────────────────────────────
 
-const IMPORT_MARKER = 'Imported by israeli-banks-sure-importer';
+export const IMPORT_MARKER = 'Imported by israeli-banks-sure-importer';
 
 function extractSourceId(notes: string | undefined): string | undefined {
   if (!notes?.includes(IMPORT_MARKER)) return undefined;
@@ -180,10 +182,11 @@ export async function resolveCategory(name: string): Promise<string | undefined>
 export async function ensureTags(names: string[], createMissing: boolean): Promise<string[]> {
   if (names.length === 0) return [];
 
-  // Load all existing tags once (cached implicitly via tagCache after first call)
-  if (tagCache.size === 0) {
+  // Load all existing tags once (guarded by tagCacheLoaded, not tagCache.size)
+  if (!tagCacheLoaded) {
     const tags = await listPaginatedCollection<SureTag>('/api/v1/tags', 'tags');
     for (const tag of tags) tagCache.set(tag.name, tag.id);
+    tagCacheLoaded = true;
   }
 
   const ids: string[] = [];
