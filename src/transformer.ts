@@ -37,7 +37,7 @@ function buildSourceId(
   }
   // Fallback: plain readable string (no hashing — must be parseable from notes)
   const datePart = tx.date.substring(0, 10);
-  const fallback = [datePart, tx.chargedAmount, tx.description, tx.memo ?? ''].join(':');
+  const fallback = [datePart, tx.chargedAmount, tx.description, tx.installments?.number ?? 0].join(':');
   return `${companyId}:${accountNumber}:${fallback}`;
 }
 
