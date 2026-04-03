@@ -1,19 +1,22 @@
-import * as fs from 'fs';
 import { schedule, type ScheduledTask } from 'node-cron';
 import logger from './logger';
 import { loadConfig, type Target } from './config';
 import { loadAppSecrets, readSecretFile } from './secrets';
 import {
   initSureClient,
-  postImport,
-  pollImport,
-  checkImport,
+  clearEntityCaches,
+  resolveAccount,
+  listImportedTransactionIds,
+  resolveCategory,
+  ensureTags,
+  createTransaction,
+  createValuation,
+  type SureAccount,
 } from './sure-client';
 import { initNotifier, notifyLoginFail, notifySyncFail, notifySuccess, notifyErrorThreshold, notifySlowScrape } from './notifier';
 import { scrapeTarget } from './scraper';
 import { reloadMerchants } from './merchants';
-import { transform, buildCsv } from './transformer';
-import { insertMany, backupDb, closeDb, type DedupRecord } from './state';
+import { transform } from './transformer';
 import { appendHistory } from './history';
 
 // --- CLI flags ---
@@ -21,7 +24,6 @@ const args = process.argv.slice(2);
 const runOnce = args.includes('--run-once');
 const dryRun = args.includes('--dry-run') || process.env.DRY_RUN === 'true';
 const importPending = process.env.IMPORT_PENDING === 'true';
-const publish = process.env.PUBLISH ?? 'false';
 const scheduleExpr = process.env.SCHEDULE;
 
 // --- Graceful shutdown state ---
@@ -44,17 +46,18 @@ class AlreadyNotifiedError extends Error {
 interface TargetStats {
   bank: string;
   scraped: number;        // total txns from scraper across all accounts
-  newTx: number;          // rows sent to Sure (or would-be-sent in dry run)
+  newTx: number;          // transactions successfully posted (or would-be in dry run)
+  txFailed: number;       // transactions that failed to post
   dedupSkipped: number;
   futureSkipped: number;
   pendingSkipped: number;
+  reconciled: boolean;
   error: boolean;
-  importFailed: boolean;
 }
 
 async function processTarget(
   target: Target,
-  accountId: string
+  createMissingTags: boolean
 ): Promise<TargetStats> {
   // Load bank credentials from /run/secrets/
   const credentials: Record<string, string> = {};
@@ -62,7 +65,19 @@ async function processTarget(
     credentials[field] = readSecretFile(secretFile);
   }
 
-  // Scrape — #19: log elapsed time per bank, #13: alert if approaching timeout
+  // Resolve Sure account (by UUID or name)
+  const sureAccount: SureAccount = await resolveAccount(
+    target.sureAccountId ?? target.sureAccountName!
+  );
+
+  // Resolve tags for this target
+  const tagIds = await ensureTags(target.tags ?? [], createMissingTags);
+
+  // Fetch existing sourceIds from Sure (dedup set)
+  const existingIds = await listImportedTransactionIds(sureAccount.id);
+  logger.debug(`[${target.name}] Dedup: ${existingIds.size} existing sourceIds in Sure`);
+
+  // Scrape — log elapsed time per bank; alert if approaching timeout
   const scrapeStart = Date.now();
   const scrapeResult = await scrapeTarget({
     companyId: target.companyId,
@@ -93,25 +108,22 @@ async function processTarget(
     throw new AlreadyNotifiedError(`Scraper failed: ${scrapeResult.errorType}`);
   }
 
-  let totalImported = 0;
   let totalScraped = 0;
+  let totalNewTx = 0;
+  let totalTxFailed = 0;
   let totalDedup = 0;
   let totalFuture = 0;
   let totalPending = 0;
-  let hasImportFailure = false;
+  let didReconcile = false;
 
   for (const account of scrapeResult.accounts) {
-    const txResult = transform(
-      account.txns,
-      account.accountNumber,
-      target.companyId,
-      importPending
-    );
-
+    const txResult = transform(account.txns, account.accountNumber, target.companyId, importPending, existingIds);
     const newCount = txResult.rows.length;
+
     logger.info(
       `[${target.name}] account=${account.accountNumber} | scraped=${account.txns.length}` +
-      ` → ${newCount} new | dedup=${txResult.alreadySeenSkipped} zero=${txResult.zeroAmountSkipped} future=${txResult.futureSkipped} pending=${txResult.pendingSkipped}`
+      ` → ${newCount} new | dedup=${txResult.alreadySeenSkipped} zero=${txResult.zeroAmountSkipped}` +
+      ` future=${txResult.futureSkipped} pending=${txResult.pendingSkipped}`
     );
 
     totalScraped += account.txns.length;
@@ -121,103 +133,87 @@ async function processTarget(
 
     if (newCount === 0) continue;
 
-    const csv = buildCsv(txResult.rows.map(r => r.row));
-
     if (dryRun) {
       logger.info(`[${target.name}] [DRY RUN] Would import ${newCount} transactions`);
-      logger.debug(`[${target.name}] [DRY RUN] CSV:\n${csv}`);
-      // #17 — Write CSV to logs volume for inspection
-      const ts = new Date().toISOString().replace(/:/g, '-').substring(0, 19); // "2026-03-21T08-00-14"
-      const csvPath = `/app/logs/dry-run-${target.companyId}-${ts}.csv`;
-      try {
-        fs.writeFileSync(csvPath, csv, 'utf-8');
-        logger.info(`[${target.name}] Dry run: CSV written to ${csvPath}`);
-      } catch (err) {
-        logger.warn(`[${target.name}] Dry run: failed to write CSV: ${String(err)}`);
+      for (const tx of txResult.rows) {
+        logger.debug(`[${target.name}] [DRY RUN] tx: name=${tx.name}\nnotes=\n${tx.notes}`);
       }
       appendHistory({
         timestamp: new Date().toISOString(),
         bank: target.name,
         companyId: target.companyId,
-        importId: null,
-        rowsSent: newCount,
+        txSent: newCount,
+        txFailed: 0,
         status: 'dry_run',
         dryRun: true,
       });
-      totalImported += newCount;
+      totalNewTx += newCount;
       continue;
     }
 
-    // Submit CSV to Sure
-    let importId: string | null = null;
-    importId = await postImport({ accountId, csv, publish });
-    logger.info(`[${target.name}] CSV posted → import_id=${importId}`);
+    // Post each transaction individually
+    let txSuccessCount = 0;
+    let txFailCount = 0;
 
-    // When publish=false, Sure places the import in the review queue with status=pending.
-    // That is the terminal state — it won't change until the user confirms in the Sure UI.
-    // When publish=true, Sure auto-processes: pending → importing → complete.
-    const importResult = publish !== 'true'
-      ? await checkImport(importId)  // single GET — pending is the expected terminal state
-      : await pollImport(importId);  // full poll — wait for auto-processing to complete
-
-    const rowSummary = `${importResult.valid_rows_count ?? '?'}/${importResult.rows_count ?? '?'} rows`;
-
-    const isSuccess =
-      importResult.status === 'complete' ||
-      (publish !== 'true' && importResult.status === 'pending');
-
-    if (isSuccess) {
-      if (importResult.status === 'complete') {
-        logger.info(`[${target.name}] Import status: complete | ${rowSummary}`);
-      } else {
-        logger.info(`[${target.name}] Import status: pending | ${rowSummary} — review in Sure UI`);
+    for (const tx of txResult.rows) {
+      let categoryId: string | undefined;
+      if (tx.txCategory && target.categoryMap?.[tx.txCategory]) {
+        categoryId = await resolveCategory(target.categoryMap[tx.txCategory]);
       }
 
-      // Persist dedup keys — import was accepted by Sure (pending = in review queue)
-      const dedupRecords: DedupRecord[] = txResult.rows.map(r => ({
-        key: r.dedupKey,
-        bank: target.companyId,
-        accountNumber: account.accountNumber,
-      }));
-      insertMany(dedupRecords);
-      const failedRows = (importResult.rows_count ?? 0) - (importResult.valid_rows_count ?? 0);
-      if (failedRows > 0) await notifyErrorThreshold(target.name, failedRows);
-      appendHistory({
-        timestamp: new Date().toISOString(),
-        bank: target.name,
-        companyId: target.companyId,
-        importId,
-        rowsSent: newCount,
-        status: importResult.status,
-        dryRun: false,
-      });
-      totalImported += newCount;
-    } else {
-      const errMsg = importResult.error ?? importResult.status;
-      logger.error(`[${target.name}] Import failed | status=${importResult.status} | ${errMsg}`);
-      await notifySyncFail(target.name, errMsg);
-      hasImportFailure = true;
-      appendHistory({
-        timestamp: new Date().toISOString(),
-        bank: target.name,
-        companyId: target.companyId,
-        importId: importId ?? null,
-        rowsSent: newCount,
-        status: 'failed',
-        dryRun: false,
-      });
+      try {
+        await createTransaction({
+          account_id: sureAccount.id,
+          name: tx.name,
+          notes: tx.notes,
+          date: tx.date,
+          amount: tx.amount,
+          currency: tx.currency,
+          category_id: categoryId,
+          tag_ids: tagIds.length ? tagIds : undefined,
+        });
+        existingIds.add(tx.sourceId);
+        txSuccessCount++;
+      } catch (txErr) {
+        logger.error(`[${target.name}] Failed to create transaction "${tx.name}": ${String(txErr)}`);
+        txFailCount++;
+      }
+    }
+
+    totalNewTx += txSuccessCount;
+    totalTxFailed += txFailCount;
+
+    appendHistory({
+      timestamp: new Date().toISOString(),
+      bank: target.name,
+      companyId: target.companyId,
+      txSent: txSuccessCount,
+      txFailed: txFailCount,
+      status: txFailCount > 0 ? 'partial' : 'complete',
+      dryRun: false,
+    });
+
+    if (txFailCount > 0) await notifyErrorThreshold(target.name, txFailCount);
+
+    // Reconciliation — post valuation when target.reconcile and balance is available
+    if (target.reconcile && account.balance != null) {
+      const todayISO = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });
+      await createValuation({ account_id: sureAccount.id, date: todayISO, amount: account.balance });
+      logger.info(`[${target.name}] Reconciled balance: ${account.balance}`);
+      didReconcile = true;
     }
   }
 
   return {
     bank: target.name,
     scraped: totalScraped,
-    newTx: totalImported,
+    newTx: totalNewTx,
+    txFailed: totalTxFailed,
     dedupSkipped: totalDedup,
     futureSkipped: totalFuture,
     pendingSkipped: totalPending,
+    reconciled: didReconcile,
     error: false,
-    importFailed: hasImportFailure,
   };
 }
 
@@ -225,8 +221,12 @@ async function processTarget(
 
 async function run(): Promise<void> {
   logger.info('=== Run started ===');
-  reloadMerchants(); // #9 — re-read merchants.json on each run; picks up edits without restart
+  reloadMerchants(); // re-read merchants.json on each run; picks up edits without restart
   if (dryRun) logger.info('[DRY RUN] mode — no Sure API writes will be made');
+
+  if (process.env.PUBLISH !== undefined) {
+    logger.warn('PUBLISH env var is set but has no effect — direct transaction API does not use a review queue');
+  }
 
   let config;
   try {
@@ -248,9 +248,8 @@ async function run(): Promise<void> {
     logger.warn('TELEGRAM_BOT_TOKEN_FILE set but could not be read — Telegram alerts disabled');
   }
 
-  if (!dryRun) {
-    initSureClient(config.sure.baseUrl, secrets.sureApiKey);
-  }
+  initSureClient(config.sure.baseUrl, secrets.sureApiKey);
+  clearEntityCaches();
   initNotifier(secrets.telegramBotToken);
 
   // Process each target sequentially — one bank failing does not stop the others
@@ -260,10 +259,8 @@ async function run(): Promise<void> {
   let failCount = 0;
 
   for (const target of config.targets) {
-    const accountId = dryRun ? 'dry-run' : target.sureAccountId;
-
     try {
-      const stats = await processTarget(target, accountId);
+      const stats = await processTarget(target, config.sure.createMissingTags ?? false);
       allStats.push(stats);
       totalImported += stats.newTx;
       successCount++;
@@ -275,22 +272,19 @@ async function run(): Promise<void> {
         await notifySyncFail(target.name, errMsg);
       }
       failCount++;
-      allStats.push({ bank: target.name, scraped: 0, newTx: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, error: true, importFailed: false });
+      allStats.push({ bank: target.name, scraped: 0, newTx: 0, txFailed: 0, dedupSkipped: 0, futureSkipped: 0, pendingSkipped: 0, reconciled: false, error: true });
     }
   }
-
-  // #12 — Back up dedup state after each run
-  await backupDb();
 
   // Build per-bank summary lines for Telegram
   const bankLines = allStats.map(s => {
     if (s.error) return `❌ ${s.bank} — scrape failed`;
-    if (s.importFailed) return `⚠️ ${s.bank} — import failed`;
     const parts: string[] = [`${s.scraped} scraped → ${s.newTx} new`];
+    if (s.txFailed > 0)       parts.push(`${s.txFailed} failed`);
     if (s.dedupSkipped > 0)   parts.push(`${s.dedupSkipped} dedup`);
     if (s.pendingSkipped > 0) parts.push(`${s.pendingSkipped} pending skipped`);
     if (s.futureSkipped > 0)  parts.push(`${s.futureSkipped} future skipped`);
-    return `✅ ${s.bank} — ${parts.join(' | ')}`;
+    return `${s.txFailed > 0 ? '⚠️' : '✅'} ${s.bank} — ${parts.join(' | ')}`;
   });
 
   const header =
@@ -322,12 +316,10 @@ function handleShutdown(signal: string): void {
     cronTask = null;
   }
 
-  closeDb();
-  logger.info(`${signal} received — scheduler stopped, database closed, shutting down`);
+  logger.info(`${signal} received — scheduler stopped, shutting down`);
 
   // Let Winston file transports drain before exit.
   // 1000ms is sufficient — log volume at shutdown is low.
-  // (The run-once path uses 3000ms as a Puppeteer handle guard; not needed here.)
   process.exitCode = 0;
   setTimeout(() => process.exit(0), 1000).unref();
 }
