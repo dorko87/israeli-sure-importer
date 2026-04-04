@@ -13,11 +13,8 @@ no cloud, no third-party services.
 
 1. Scrapes your configured bank and credit card accounts using headless Chromium
 2. Filters out zero-amount transactions, future-dated transactions, and already-imported transactions
-3. Generates a CSV from new transactions only
-4. Posts the CSV to Sure's Import API (`POST /api/v1/imports`)
-5. When `PUBLISH=false` (default), the import lands in Sure's review queue - you
-   inspect and confirm in the Sure UI before transactions appear
-6. Once validated, set `PUBLISH=true` for fully automatic imports on every run
+3. Posts each new transaction directly to Sure via `POST /api/v1/transactions` — transactions appear immediately, no review queue
+4. Embeds a `Source ID` in every transaction's notes — on the next run this is queried back from Sure to skip already-imported transactions (no local database)
 
 ---
 
@@ -91,8 +88,8 @@ See the [Configuration](#configuration) section below for the full schema.
 ### 5. Set up directories and copy merchants.json
 
 ```bash
-mkdir -p cache browser-data logs
-chown -R 1000:1000 cache browser-data logs
+mkdir -p browser-data logs
+chown -R 1000:1000 browser-data logs
 cp merchants.json logs/merchants.json
 ```
 
@@ -112,32 +109,35 @@ below for the full reference.
 
 ### 7. Test run
 
-Pull the image and run once — transactions land in Sure's **review queue**, nothing
-is auto-published:
+Pull the image and do a dry run first — scrapes but writes nothing to Sure:
 
 ```bash
 docker compose pull
-docker compose run --rm israeli-sure-importer node dist/index.js --run-once
+docker compose run --rm israeli-sure-importer node dist/index.js --run-once --dry-run
 tail -f ./logs/importer.log
 ```
 
-**What success looks like in the log:**
+**What success looks like in the log (dry run):**
 ```
-[INFO]  [leumi] Scraped 28 tx → 9 new | CSV posted → import_id=abc123
-[INFO]  [leumi] Import status: pending — review in Sure UI
+[INFO]  [DRY RUN] mode — no Sure API writes will be made
+[INFO]  [Leumi Checking] Scraped in 38s
+[INFO]  [Leumi Checking] account=12345678 | scraped=28 → 28 new | dedup=0 zero=0 future=0 pending=0
+[INFO]  [DRY RUN] Would import 28 transactions
 [INFO]  === Run finished ===
 ```
 
-Open Sure → Transactions → Imports → review the pending import → confirm it looks correct.
+Once that looks right, run for real:
+```bash
+docker compose run --rm israeli-sure-importer node dist/index.js --run-once
+```
+
+Transactions appear directly in Sure — no review queue. Check the log for the per-bank summary.
 
 If you see errors, set `LOG_LEVEL: debug` in `compose.yml` and re-run for full detail.
 
 ### 8. Go live
 
-Once you're happy with the first import:
-
-1. Open `compose.yml` and set `PUBLISH: "true"` (auto-process future imports)
-2. Start on schedule:
+Once you're happy with the first import, start on schedule:
 
 ```bash
 docker compose up -d
@@ -194,8 +194,7 @@ Contains only structure - no credentials, no API keys. Safe to commit.
 | `SCHEDULE` | - | Cron expression. Remove entirely to run once and exit. |
 | `DAYS_BACK` | `30` | Days to fetch on the very first run |
 | `TIMEOUT_MINUTES` | `10` | Per-bank timeout (also sets Puppeteer defaultTimeout) |
-| `PUBLISH` | `"false"` | `"false"` = review queue · `"true"` = auto-process |
-| `DRY_RUN` | `"false"` | `"true"` = scrape only, no uploads to Sure |
+| `DRY_RUN` | `"false"` | `"true"` = scrape only, no writes to Sure |
 | `IMPORT_PENDING` | `"false"` | `"true"` = include bank-pending transactions |
 | `BROWSER_DATA_DIR` | `/app/browser-data` | Per-bank browser profile path. Remove to use fresh session every run. |
 | `MERCHANTS_PATH` | `/app/logs/merchants.json` | Override path to `merchants.json`. |
@@ -203,7 +202,6 @@ Contains only structure - no credentials, no API keys. Safe to commit.
 | `NOTIFY_ON_SYNC_FAIL` | `"true"` | Telegram alert on sync failure. Note: slow-scrape warnings always fire regardless of this flag. |
 | `NOTIFY_ERROR_THRESHOLD` | `0` | Telegram alert when failed tx count ≥ this |
 | `NOTIFY_ON_SUCCESS` | `"false"` | Telegram summary on successful sync |
-| `CACHE_DIR` | `/app/cache` | Override `state.db` directory |
 | `HISTORY_PATH` | `/app/logs/import_history.jsonl` | Override import history log path |
 
 ### `merchants.json`
@@ -248,14 +246,17 @@ budgets, and reports.
 
 ### Duplicate prevention
 
-The bridge tracks every imported transaction in a local SQLite database (`cache/state.db`).
-On each run it checks new transactions against this database before building the CSV -
-anything already imported is silently skipped.
+No local database. The bridge queries Sure directly on each run.
 
-The deduplication key is a SHA-256 hash built from:
+Before posting transactions for an account, it fetches existing transactions from Sure
+that contain the import marker string in their notes, and extracts the `Source ID:` line
+from each. Any scraped transaction whose computed Source ID is already in that set is
+silently skipped.
 
-- **Primary** (when the bank provides a transaction ID): `accountNumber + transactionId`
-- **Fallback** (when no transaction ID is available): `accountNumber + date + amount + description + installmentNumber`
+The Source ID is a plain readable string built from:
+
+- **Primary** (when the bank provides a transaction ID): `companyId:accountNumber:transactionId`
+- **Fallback** (when no transaction ID is available): `companyId:accountNumber:date:amount:description:installmentNumber`
 
 The installment number is deliberately included in the fallback key. Israeli banks
 report installment payments with the same merchant name and amount every month -
@@ -333,21 +334,6 @@ per-transaction detail when troubleshooting a bank login or scraper failure.
 
 ---
 
-## Import Review Workflow
-
-When `PUBLISH=false` (recommended for first use):
-
-1. Sync runs → CSV is posted to Sure → import lands with `status: pending`
-2. Log shows: `[leumi] Import status: pending - review in Sure UI`
-3. Open Sure → Transactions → Imports
-4. Review the pending import - check dates, amounts, merchant names
-5. Confirm → transactions are published to your account
-6. Once you trust the data: set `PUBLISH=true` in `compose.yml` for hands-free imports
-
-![Sure UI - Imports review queue](docs/sure-imports.png)
-
----
-
 ## 2FA and Session Persistence
 
 Some banks (notably Hapoalim) require two-factor authentication on first login.
@@ -386,28 +372,22 @@ Store master copies in Vaultwarden. To rotate a credential:
 
 **Fewer transactions imported than expected**
 - Zero-amount transactions are always skipped - this is intentional
-- Transactions already imported in a previous run are skipped via `state.db`
+- Transactions already imported in a previous run are skipped via Sure-side dedup (Source ID in notes)
 - Run with `LOG_LEVEL=debug` to see the skip reason for each filtered transaction
 
 **Installment transactions duplicating**
-- Each installment payment (e.g. payment 3 of 12) should get its own unique entry
-- If you see duplicates, check `cache/state.db` - it may be corrupted or missing
-- Delete `state.db` to reset dedup state (next run will re-import everything in `DAYS_BACK`)
+- Each installment payment (e.g. payment 3 of 12) should get its own unique Source ID
+- If you see duplicates, check that existing Sure transactions have `Source ID:` in their notes
+- If notes are missing the Source ID (e.g. from an older version), dedup won't fire — delete the duplicates in Sure and re-run
 
 **Bank login fails (`INVALID_PASSWORD`)**
 - Check the secret file contains exactly the right value with no trailing newline:
   `cat secrets/leumi_password` (value printed inline = no newline)
 - Try `LOG_LEVEL=debug` to see the browser state at failure
 
-**Import lands in Sure but shows 0 valid rows**
-- Run with `--dry-run` and check the log for the CSV content being generated
-- Verify your Sure date format is set to `DD/MM/YYYY` (Sure → Settings → Preferences)
-
-![Sure Preferences — Date format must be DD/MM/YYYY](docs/date-format-preferences.png)
-
 **Transactions duplicating across runs**
-- Check `cache/state.db` exists and the volume mount is correct
-- `state.db` persists deduplication state across restarts
+- Check that transactions in Sure contain `Imported by israeli-banks-sure-importer` in their notes
+- If notes are missing this marker, the dedup query returns nothing and all transactions appear new on every run
 
 **Chromium fails to launch**
 - Verify `shm_size: "256mb"` is set in `compose.yml`
@@ -428,6 +408,5 @@ Store master copies in Vaultwarden. To rotate a credential:
 | `merchants.json` | No | Merchant name overrides |
 | `compose.yml` | No | Docker configuration |
 | `secrets/` | **Yes** | All credentials - gitignored |
-| `cache/state.db` | No | Dedup state - gitignored |
 | `browser-data/` | Partial | Browser sessions - gitignored |
 | `logs/` | No | Log files - gitignored |
