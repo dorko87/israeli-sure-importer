@@ -1,5 +1,50 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import logger from './logger';
+
+// ── Retry helpers ─────────────────────────────────────────────────────────────
+
+const sleep = (ms: number): Promise<void> => new Promise(res => setTimeout(res, ms));
+
+const MAX_RETRIES = 5;
+
+/**
+ * Installs a response interceptor that retries requests on HTTP 429.
+ * Respects the `Retry-After` response header when present; otherwise uses
+ * exponential back-off starting at 1 s (1 s, 2 s, 4 s, 8 s, 16 s).
+ */
+function install429Interceptor(instance: AxiosInstance): void {
+  instance.interceptors.response.use(
+    res => res,
+    async (err: unknown) => {
+      const axiosErr = err as {
+        response?: { status?: number; headers?: Record<string, string> };
+        config?: InternalAxiosRequestConfig & { _retryCount?: number };
+      };
+
+      if (axiosErr?.response?.status !== 429) return Promise.reject(err);
+
+      const config = axiosErr.config;
+      if (!config) return Promise.reject(err);
+
+      config._retryCount = (config._retryCount ?? 0) + 1;
+      if (config._retryCount > MAX_RETRIES) {
+        logger.warn(`[sure-client] 429 — max retries (${MAX_RETRIES}) exhausted`);
+        return Promise.reject(err);
+      }
+
+      const retryAfterHeader = axiosErr.response?.headers?.['retry-after'];
+      const waitMs = retryAfterHeader
+        ? Math.max(parseInt(retryAfterHeader, 10), 1) * 1000
+        : Math.min(1000 * 2 ** (config._retryCount - 1), 16_000); // 1 s, 2 s, 4 s, 8 s, 16 s
+
+      logger.debug(
+        `[sure-client] 429 rate-limited — retry ${config._retryCount}/${MAX_RETRIES} after ${waitMs}ms`
+      );
+      await sleep(waitMs);
+      return instance.request(config);
+    }
+  );
+}
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -52,6 +97,7 @@ export function initSureClient(baseUrl: string, apiKey: string): void {
     headers: { 'X-Api-Key': apiKey },
     timeout: 30_000,
   });
+  install429Interceptor(client);
 }
 
 export function clearEntityCaches(): void {
@@ -83,6 +129,7 @@ async function listPaginatedCollection<T>(
   let page = 1;
 
   for (;;) {
+    if (page > 1) await sleep(300); // brief pause between pages to avoid rate limiting
     const res = await getClient().get<Record<string, T[]>>(path, {
       params: { ...params, page: String(page), per_page: '500' },
     });
