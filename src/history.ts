@@ -10,7 +10,7 @@ export interface HistoryEntry {
   companyId: string;       // target.companyId
   txSent: number;          // transactions successfully posted (0 on dry run = would-be count)
   txFailed: number;        // transactions that failed to post (0 on dry run)
-  status: string;          // 'complete' | 'partial' | 'dry_run' | 'error'
+  status: string;          // 'complete' | 'partial' | 'dry_run'
   dryRun: boolean;
 }
 

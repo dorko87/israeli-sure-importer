@@ -220,10 +220,9 @@ export async function ensureTags(names: string[], createMissing: boolean): Promi
  * Creates a single transaction in Sure.
  * Returns the created transaction ID.
  *
- * NOTE: The amount/type field shape needs verification on first run.
- * Current impl uses Option B (absolute amount + transaction_type).
- * If Sure uses signed amounts, switch to Option A: remove Math.abs and
- * transaction_type, pass amount: input.amount directly.
+ * Amount field: Sure expects an absolute (positive) value + transaction_type string.
+ * Expenses use transaction_type='expense', income uses 'income'.
+ * The signed amount from the scraper (negative = expense) is converted via Math.abs.
  */
 export async function createTransaction(input: CreateTransactionInput): Promise<string> {
   const res = await getClient().post<{ data: { id: string } }>('/api/v1/transactions', {

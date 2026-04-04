@@ -203,6 +203,7 @@ Contains only structure - no credentials, no API keys. Safe to commit.
 | `NOTIFY_ERROR_THRESHOLD` | `0` | Telegram alert when failed tx count ≥ this |
 | `NOTIFY_ON_SUCCESS` | `"false"` | Telegram summary on successful sync |
 | `HISTORY_PATH` | `/app/logs/import_history.jsonl` | Override import history log path |
+| `PUBLISH` | - | **Deprecated.** Has no effect — remove from `compose.yml` if set. A warning is logged on every run if this variable is present. |
 
 ### `merchants.json`
 
