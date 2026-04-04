@@ -134,7 +134,11 @@ export function transform(
 
     const name = findMatch(tx.description) ?? tx.description;
     const notes = buildNotes(tx, name, companyId, accountNumber, sourceId);
-    const currency = tx.originalCurrency ?? 'ILS';
+    // chargedAmount is always in ILS (the account's settlement currency).
+    // originalCurrency is the foreign purchase currency — already captured in
+    // the metadata block as "Original amount: X USD". Never use it as the
+    // transaction currency, since that would misrepresent the charged amount.
+    const currency = 'ILS';
 
     rows.push({
       name,

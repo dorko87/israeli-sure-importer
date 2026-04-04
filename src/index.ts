@@ -192,8 +192,10 @@ async function processTarget(
     }
   }
 
-  // Post-loop: write history and notify of failures (aggregate across all accounts)
-  if (!dryRun && (totalNewTx > 0 || totalTxFailed > 0)) {
+  // Post-loop: always write a history entry after a real run so every
+  // scheduled execution is visible in import_history.jsonl — even when
+  // everything is deduped and 0 new transactions are imported.
+  if (!dryRun) {
     appendHistory({
       timestamp: new Date().toISOString(),
       bank: target.name,

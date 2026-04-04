@@ -1,6 +1,7 @@
 {
   "sure": {
-    "baseUrl": "http://sure:3000"
+    "baseUrl": "http://sure:3000",
+    "createMissingTags": false
   },
   "targets": [
     {
@@ -19,7 +20,10 @@
         "username": "max_username",
         "password": "max_password"
       },
-      "sureAccountId": "paste-uuid-from-sure-ui"
+      "sureAccountId": "paste-uuid-from-sure-ui",
+      "reconcile": false,
+      "tags": [],
+      "categoryMap": {}
     }
   ]
 }
