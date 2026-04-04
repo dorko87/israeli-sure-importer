@@ -268,7 +268,7 @@ identical and all but the first would be incorrectly skipped.
 | Sure field | Content | Example |
 |------------|---------|---------|
 | **Name** | Clean merchant name (from `merchants.json` if matched, otherwise raw description). No installment info - keeps Sure's Rules engine working correctly. | `קאנטרי קריית טבעון` |
-| **Notes** | Additional context only - never duplicates what is already in Name. Plain transaction with no merchant match and no memo: empty. Plain transaction with merchant match: raw bank description (audit trail). Transfer transaction with bank memo (Paybox, Bit, etc.): memo text e.g. `"למי: Name, עבור: Purpose"`. Installment: installment label (`תשלום N מתוך M`) optionally followed by raw description if a merchant match was found. | `תשלום 3 מתוך 12 \| קאנטרי קריית טבעון` |
+| **Notes** | User-readable context (installment label, raw description, or bank memo) followed by a blank line and a structured metadata block containing `Imported by israeli-banks-sure-importer`, `Source ID:`, `Source bank:`, `Source account:`, `Processed date:`, and optionally `Installment:` and `Original amount:`. The metadata block is always present — it powers dedup on the next run. | `תשלום 3 מתוך 12 \| קאנטרי קריית טבעון` |
 
 ---
 
