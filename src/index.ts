@@ -66,14 +66,17 @@ async function processTarget(
   }
 
   // Resolve Sure account (by UUID or name)
+  logger.info(`[${target.name}] Resolving Sure account...`);
   const sureAccount: SureAccount = await resolveAccount(
     target.sureAccountId ?? target.sureAccountName!
   );
 
   // Resolve tags for this target
+  if (target.tags?.length) logger.info(`[${target.name}] Loading tags from Sure...`);
   const tagIds = await ensureTags(target.tags ?? [], createMissingTags);
 
   // Fetch existing sourceIds from Sure (dedup set)
+  logger.info(`[${target.name}] Fetching existing transaction IDs from Sure (dedup)...`);
   const existingIds = await listImportedTransactionIds(sureAccount.id);
   logger.debug(`[${target.name}] Dedup: ${existingIds.size} existing sourceIds in Sure`);
 

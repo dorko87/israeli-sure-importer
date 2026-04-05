@@ -141,14 +141,23 @@ async function listPaginatedCollection<T>(
 
   for (;;) {
     if (page > 1) await sleep(300); // brief pause between pages to avoid rate limiting
-    const res = await getClient().get<Record<string, T[]>>(path, {
+    const res = await getClient().get<Record<string, unknown>>(path, {
       params: { ...params, page: String(page), per_page: '100' },
     });
 
-    const items: T[] = res.data[itemsKey] ?? [];
+    const items = (res.data[itemsKey] as T[] | undefined) ?? [];
     if (items.length === 0) break;
-
     results.push(...items);
+
+    // Use Sure's pagination metadata to detect the last page.
+    // Fallback: fewer items than per_page means this was the last page.
+    const pagination = res.data['pagination'] as
+      | { current_page?: number; total_pages?: number }
+      | undefined;
+    const isLastPage = pagination?.total_pages != null
+      ? page >= pagination.total_pages
+      : items.length < 100;
+    if (isLastPage) break;
     page++;
   }
 
