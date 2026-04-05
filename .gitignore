@@ -15,7 +15,7 @@ config.json
 .env
 
 # Internal AI context and session planning — not for public repo
-claude.md
+CLAUDE.md
 PRD.md
 renovate.json
 .claude/
