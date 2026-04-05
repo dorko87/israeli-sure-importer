@@ -249,9 +249,12 @@ export async function resolveCategory(name: string): Promise<string | undefined>
 export async function ensureTags(names: string[], createMissing: boolean): Promise<string[]> {
   if (names.length === 0) return [];
 
-  // Load all existing tags once (guarded by tagCacheLoaded, not tagCache.size)
+  // Load all existing tags once (guarded by tagCacheLoaded, not tagCache.size).
+  // GET /api/v1/tags returns a plain JSON array (no envelope), so we can't use
+  // listPaginatedCollection here.
   if (!tagCacheLoaded) {
-    const tags = await listPaginatedCollection<SureTag>('/api/v1/tags', 'tags');
+    const res = await getClient().get<SureTag[] | Record<string, unknown>>('/api/v1/tags');
+    const tags = Array.isArray(res.data) ? res.data : [];
     for (const tag of tags) tagCache.set(tag.name, tag.id);
     tagCacheLoaded = true;
   }
@@ -270,8 +273,8 @@ export async function ensureTags(names: string[], createMissing: boolean): Promi
     }
 
     try {
-      const res = await getClient().post<{ tag: SureTag }>('/api/v1/tags', { tag: { name } });
-      const created = res.data.tag;
+      const res = await getClient().post<SureTag>('/api/v1/tags', { tag: { name } });
+      const created = res.data; // response is a flat tag object
       tagCache.set(created.name, created.id);
       ids.push(created.id);
       logger.debug(`[sure-client] Created tag: "${name}" → ${created.id}`);
@@ -293,7 +296,9 @@ export async function ensureTags(names: string[], createMissing: boolean): Promi
  * Sure's API requires the payload wrapped in a `transaction` key.
  */
 export async function createTransaction(input: CreateTransactionInput): Promise<string> {
-  const res = await getClient().post<{ transaction: { id: string } }>('/api/v1/transactions', {
+  // Sure wraps the request body in a `transaction` key (Rails strong params).
+  // The response is a flat transaction object — access res.data.id directly.
+  const res = await getClient().post<{ id: string }>('/api/v1/transactions', {
     transaction: {
       account_id: input.account_id,
       name: input.name,
@@ -306,7 +311,7 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
       ...(input.tag_ids?.length ? { tag_ids: input.tag_ids } : {}),
     },
   });
-  return res.data.transaction.id;
+  return res.data.id;
 }
 
 /**

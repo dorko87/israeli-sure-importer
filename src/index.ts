@@ -188,10 +188,18 @@ async function processTarget(
 
     // Reconciliation — post valuation when target.reconcile and balance is available
     if (target.reconcile && account.balance != null) {
-      const todayISO = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });
-      await createValuation({ account_id: sureAccount.id, date: todayISO, amount: account.balance });
-      logger.info(`[${target.name}] Reconciled balance: ${account.balance}`);
-      didReconcile = true;
+      try {
+        const todayISO = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });
+        await createValuation({ account_id: sureAccount.id, date: todayISO, amount: account.balance });
+        logger.info(`[${target.name}] Reconciled balance: ${account.balance}`);
+        didReconcile = true;
+      } catch (valErr) {
+        const detail = (valErr as { response?: { data?: unknown } })?.response?.data;
+        logger.warn(
+          `[${target.name}] Reconciliation failed (non-fatal): ${String(valErr)}` +
+          (detail ? ` | response: ${JSON.stringify(detail)}` : '')
+        );
+      }
     }
   }
 
