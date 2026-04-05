@@ -44,6 +44,8 @@ Make sure you have the following ready before touching a terminal:
 - [ ] A Sure account UUID for **each** bank — create them in Sure UI first:
       Sure → Accounts → New Account → select **Cash** (bank account) or **Credit Card**
       → open the account → Settings → copy the UUID
+      *(Alternatively, you can use the exact account display name via `sureAccountName`
+      instead of the UUID — see [Configuration](#configuration))*
 
 ### 2. Clone the repo
 
@@ -119,10 +121,14 @@ tail -f ./logs/importer.log
 
 **What success looks like in the log (dry run):**
 ```
+[INFO]  === Run started ===
 [INFO]  [DRY RUN] mode — no Sure API writes will be made
+[INFO]  [Leumi Checking] Resolving Sure account...
+[INFO]  [Leumi Checking] Fetching existing transaction IDs from Sure (dedup)...
 [INFO]  [Leumi Checking] Scraped in 38s
 [INFO]  [Leumi Checking] account=12345678 | scraped=28 → 28 new | dedup=0 zero=0 future=0 pending=0
-[INFO]  [DRY RUN] Would import 28 transactions
+[INFO]  [Leumi Checking] [DRY RUN] Would import 28 transactions
+[INFO]  Run complete | banks=1 ok=1 fail=0 | imported=28 tx [DRY RUN]
 [INFO]  === Run finished ===
 ```
 
@@ -155,11 +161,13 @@ Contains only structure - no credentials, no API keys. Safe to commit.
 {
   "sure": {
     // Sure container URL - use container name if on same Docker network
-    "baseUrl": "http://sure:3000"
+    "baseUrl": "http://sure:3000",
+    // Optional: auto-create tags in Sure that don't exist yet (default: false)
+    "createMissingTags": false
   },
   "targets": [
     {
-      // Label used in logs
+      // Label used in logs and Telegram alerts
       "name": "Leumi Checking",
       // CompanyTypes key from israeli-bank-scrapers
       "companyId": "leumi",
@@ -172,6 +180,8 @@ Contains only structure - no credentials, no API keys. Safe to commit.
       // Sure UI → Accounts → New Account → select type (Cash / Credit Card)
       // then copy the UUID from the account settings page
       "sureAccountId": "paste-uuid-from-sure-ui"
+      // Alternative: use account display name instead of UUID:
+      // "sureAccountName": "Leumi Checking"
     },
     {
       "name": "Max Credit Card",
@@ -180,11 +190,35 @@ Contains only structure - no credentials, no API keys. Safe to commit.
         "username": "max_username",
         "password": "max_password"
       },
-      "sureAccountId": "paste-uuid-from-sure-ui"
+      "sureAccountId": "paste-uuid-from-sure-ui",
+      // Optional fields:
+      "reconcile": false,        // post account balance to Sure after each sync
+      "tags": ["Bank Import"],   // tag names to attach to every imported transaction
+      "categoryMap": {}          // map scraper tx.type values → Sure category names
     }
   ]
 }
 ```
+
+#### Sure settings
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `baseUrl` | — | Sure instance URL (required) |
+| `createMissingTags` | `false` | If `true`, auto-creates tags in Sure that don't exist yet |
+
+#### Target settings
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Label used in logs and Telegram alerts |
+| `companyId` | Yes | `israeli-bank-scrapers` CompanyTypes key (e.g. `"leumi"`, `"max"`) |
+| `credentialSecrets` | Yes | Map of credential field → secret filename under `secrets/` |
+| `sureAccountId` | One of | Sure account UUID — from account Settings page in Sure UI |
+| `sureAccountName` | One of | Exact Sure account display name — resolved to UUID at runtime |
+| `reconcile` | No | If `true`, posts the scraped account balance to Sure after each sync via `POST /api/v1/valuations` |
+| `tags` | No | Tag names to attach to every imported transaction. Tags must exist in Sure UI first (or set `createMissingTags: true`). |
+| `categoryMap` | No | Maps scraper `tx.type` values to Sure category names for auto-categorization. Categories must exist in Sure — they are never auto-created. |
 
 ### `compose.yml` environment variables
 
@@ -393,6 +427,10 @@ Store master copies in Vaultwarden. To rotate a credential:
 **Chromium fails to launch**
 - Verify `shm_size: "256mb"` is set in `compose.yml`
 - Check `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium` is set
+
+**Tags are being skipped (`Tag not found` warning)**
+- Create the tag in Sure UI first: Sure → Settings → Tags → New Tag
+- Or set `createMissingTags: true` in `config.json → sure` to have them created automatically on first run
 
 **Sure API returns 401**
 - Check `secrets/sure_api_key` contains the correct key
