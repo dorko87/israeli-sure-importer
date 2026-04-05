@@ -37,8 +37,10 @@ function install429Interceptor(instance: AxiosInstance): void {
         ? Math.max(parseInt(retryAfterHeader, 10), 1) * 1000
         : Math.min(1000 * 2 ** (config._retryCount - 1), 16_000); // 1 s, 2 s, 4 s, 8 s, 16 s
 
-      logger.debug(
-        `[sure-client] 429 rate-limited — retry ${config._retryCount}/${MAX_RETRIES} after ${waitMs}ms`
+      const url = `${config.baseURL ?? ''}${config.url ?? ''}`;
+      logger.warn(
+        `[sure-client] 429 on ${config.method?.toUpperCase()} ${url} — retry ${config._retryCount}/${MAX_RETRIES} after ${waitMs}ms` +
+        (retryAfterHeader ? ` (Retry-After: ${retryAfterHeader}s)` : '')
       );
       await sleep(waitMs);
       return instance.request(config);
@@ -131,7 +133,7 @@ async function listPaginatedCollection<T>(
   for (;;) {
     if (page > 1) await sleep(300); // brief pause between pages to avoid rate limiting
     const res = await getClient().get<Record<string, T[]>>(path, {
-      params: { ...params, page: String(page), per_page: '500' },
+      params: { ...params, page: String(page), per_page: '100' },
     });
 
     const items: T[] = res.data[itemsKey] ?? [];
