@@ -187,11 +187,12 @@ async function processTarget(
     totalTxFailed += txFailCount;
 
     // Reconciliation — post valuation when target.reconcile and balance is available
-    if (target.reconcile && account.balance != null) {
+    const balance = account.balance;
+    if (target.reconcile && balance != null && Number.isFinite(balance)) {
       try {
         const todayISO = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });
-        await createValuation({ account_id: sureAccount.id, date: todayISO, amount: account.balance });
-        logger.info(`[${target.name}] Reconciled balance: ${account.balance}`);
+        await createValuation({ account_id: sureAccount.id, date: todayISO, amount: balance });
+        logger.info(`[${target.name}] Reconciled balance: ${balance}`);
         didReconcile = true;
       } catch (valErr) {
         const detail = (valErr as { response?: { data?: unknown } })?.response?.data;
