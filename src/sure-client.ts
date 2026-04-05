@@ -270,8 +270,8 @@ export async function ensureTags(names: string[], createMissing: boolean): Promi
     }
 
     try {
-      const res = await getClient().post<{ data: SureTag }>('/api/v1/tags', { name });
-      const created = res.data.data;
+      const res = await getClient().post<{ tag: SureTag }>('/api/v1/tags', { tag: { name } });
+      const created = res.data.tag;
       tagCache.set(created.name, created.id);
       ids.push(created.id);
       logger.debug(`[sure-client] Created tag: "${name}" → ${created.id}`);
@@ -287,32 +287,38 @@ export async function ensureTags(names: string[], createMissing: boolean): Promi
  * Creates a single transaction in Sure.
  * Returns the created transaction ID.
  *
- * Amount field: Sure expects an absolute (positive) value + transaction_type string.
- * Expenses use transaction_type='expense', income uses 'income'.
+ * Amount field: Sure expects an absolute (positive) value + nature string.
+ * Expenses use nature='expense', income uses 'income'.
  * The signed amount from the scraper (negative = expense) is converted via Math.abs.
+ * Sure's API requires the payload wrapped in a `transaction` key.
  */
 export async function createTransaction(input: CreateTransactionInput): Promise<string> {
-  const res = await getClient().post<{ data: { id: string } }>('/api/v1/transactions', {
-    account_id: input.account_id,
-    name: input.name,
-    notes: input.notes,
-    date: input.date,
-    amount: Math.abs(input.amount),
-    transaction_type: input.amount < 0 ? 'expense' : 'income',
-    currency: input.currency ?? 'ILS',
-    ...(input.category_id ? { category_id: input.category_id } : {}),
-    ...(input.tag_ids?.length ? { tag_ids: input.tag_ids } : {}),
+  const res = await getClient().post<{ transaction: { id: string } }>('/api/v1/transactions', {
+    transaction: {
+      account_id: input.account_id,
+      name: input.name,
+      notes: input.notes,
+      date: input.date,
+      amount: Math.abs(input.amount),
+      nature: input.amount < 0 ? 'expense' : 'income',
+      ...(input.currency ? { currency: input.currency } : {}),
+      ...(input.category_id ? { category_id: input.category_id } : {}),
+      ...(input.tag_ids?.length ? { tag_ids: input.tag_ids } : {}),
+    },
   });
-  return res.data.data.id;
+  return res.data.transaction.id;
 }
 
 /**
  * Creates a valuation entry for balance reconciliation.
+ * Sure's API requires the payload wrapped in a `valuation` key.
  */
 export async function createValuation(input: CreateValuationInput): Promise<void> {
   await getClient().post('/api/v1/valuations', {
-    account_id: input.account_id,
-    date: input.date,
-    amount: input.amount,
+    valuation: {
+      account_id: input.account_id,
+      date: input.date,
+      amount: input.amount,
+    },
   });
 }
