@@ -11,7 +11,11 @@
         "username": "leumi_username",
         "password": "leumi_password"
       },
-      "sureAccountId": "paste-uuid-from-sure-ui"
+      "sureAccountId": "paste-uuid-from-sure-ui",
+      "reconcile": false,
+      "tags": [],
+      "categoryMap": {},
+      "accounts": "all"
     },
     {
       "name": "Max Card",
@@ -22,9 +26,9 @@
       },
       "sureAccountId": "paste-uuid-from-sure-ui",
       "reconcile": false,
-      "tags": [],
+      "tags": ["Credit Card Import"],
       "categoryMap": {},
-      "accounts": "all"
+      "accounts": ["5674", "9834"]
     }
   ]
 }
