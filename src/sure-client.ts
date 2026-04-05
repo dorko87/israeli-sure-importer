@@ -11,14 +11,21 @@ const MAX_RETRIES = 5;
  * Installs a response interceptor that retries requests on HTTP 429.
  * Respects the `Retry-After` response header when present; otherwise uses
  * exponential back-off starting at 1 s (1 s, 2 s, 4 s, 8 s, 16 s).
+ *
+ * Retry counts are tracked in a WeakMap keyed on the config object so the
+ * counter survives Axios's internal config-clone on each retry attempt.
  */
 function install429Interceptor(instance: AxiosInstance): void {
+  // WeakMap survives Axios's mergeConfig clone because Axios re-uses the same
+  // config object reference on retries (it only deep-merges for new requests).
+  const retryCounts = new WeakMap<object, number>();
+
   instance.interceptors.response.use(
     res => res,
     async (err: unknown) => {
       const axiosErr = err as {
         response?: { status?: number; headers?: Record<string, string> };
-        config?: InternalAxiosRequestConfig & { _retryCount?: number };
+        config?: InternalAxiosRequestConfig;
       };
 
       if (axiosErr?.response?.status !== 429) return Promise.reject(err);
@@ -26,8 +33,10 @@ function install429Interceptor(instance: AxiosInstance): void {
       const config = axiosErr.config;
       if (!config) return Promise.reject(err);
 
-      config._retryCount = (config._retryCount ?? 0) + 1;
-      if (config._retryCount > MAX_RETRIES) {
+      const attempt = (retryCounts.get(config) ?? 0) + 1;
+      retryCounts.set(config, attempt);
+
+      if (attempt > MAX_RETRIES) {
         logger.warn(`[sure-client] 429 — max retries (${MAX_RETRIES}) exhausted`);
         return Promise.reject(err);
       }
@@ -35,11 +44,11 @@ function install429Interceptor(instance: AxiosInstance): void {
       const retryAfterHeader = axiosErr.response?.headers?.['retry-after'];
       const waitMs = retryAfterHeader
         ? Math.max(parseInt(retryAfterHeader, 10), 1) * 1000
-        : Math.min(1000 * 2 ** (config._retryCount - 1), 16_000); // 1 s, 2 s, 4 s, 8 s, 16 s
+        : Math.min(1000 * 2 ** (attempt - 1), 16_000); // 1 s, 2 s, 4 s, 8 s, 16 s
 
       const url = `${config.baseURL ?? ''}${config.url ?? ''}`;
       logger.warn(
-        `[sure-client] 429 on ${config.method?.toUpperCase()} ${url} — retry ${config._retryCount}/${MAX_RETRIES} after ${waitMs}ms` +
+        `[sure-client] 429 on ${config.method?.toUpperCase()} ${url} — retry ${attempt}/${MAX_RETRIES} after ${waitMs}ms` +
         (retryAfterHeader ? ` (Retry-After: ${retryAfterHeader}s)` : '')
       );
       await sleep(waitMs);
