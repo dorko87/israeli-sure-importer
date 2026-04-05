@@ -23,6 +23,8 @@ services:
       DRY_RUN: "false"
       # "true" = include bank-pending transactions
       IMPORT_PENDING: "false"
+      # "true" = include future-dated transactions (default: dropped — prevents credit card scheduled charges)
+      IMPORT_FUTURE: "false"
       # Puppeteer — use system Chromium installed in the image
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
       PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"

@@ -99,7 +99,7 @@ function buildNotes(
  *
  * Filters applied (in order):
  *   1. Zero-amount  — unconditionally dropped (chargedAmount === 0)
- *   2. Future-date  — unconditionally dropped (date > today Asia/Jerusalem)
+ *   2. Future-date  — dropped unless importFuture is true
  *   3. Pending      — dropped unless importPending is true
  *   4. Dedup        — dropped if sourceId already in existingIds (Sure-side set)
  */
@@ -108,7 +108,8 @@ export function transform(
   accountNumber: string,
   companyId: string,
   importPending: boolean,
-  existingIds: Set<string>
+  existingIds: Set<string>,
+  importFuture: boolean = false,
 ): TransformResult {
   let zeroAmountSkipped = 0;
   let futureSkipped = 0;
@@ -123,7 +124,7 @@ export function transform(
     if (tx.chargedAmount === 0) { zeroAmountSkipped++; continue; }
 
     // 2. Future-date filter
-    if (tx.date.substring(0, 10) > todayStr) { futureSkipped++; continue; }
+    if (!importFuture && tx.date.substring(0, 10) > todayStr) { futureSkipped++; continue; }
 
     // 3. Pending filter
     if (tx.status === 'pending' && !importPending) { pendingSkipped++; continue; }

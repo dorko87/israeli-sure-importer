@@ -24,6 +24,7 @@ const args = process.argv.slice(2);
 const runOnce = args.includes('--run-once');
 const dryRun = args.includes('--dry-run') || process.env.DRY_RUN === 'true';
 const importPending = process.env.IMPORT_PENDING === 'true';
+const importFuture  = process.env.IMPORT_FUTURE  === 'true';
 const scheduleExpr = process.env.SCHEDULE;
 
 // --- Graceful shutdown state ---
@@ -119,8 +120,17 @@ async function processTarget(
   let totalPending = 0;
   let didReconcile = false;
 
+  // Build the set of wanted account numbers (undefined / 'all' = accept everything)
+  const accountFilter = target.accounts && target.accounts !== 'all'
+    ? new Set(target.accounts.map(String))
+    : null;
+
   for (const account of scrapeResult.accounts) {
-    const txResult = transform(account.txns, account.accountNumber, target.companyId, importPending, existingIds);
+    if (accountFilter && !accountFilter.has(String(account.accountNumber))) {
+      logger.debug(`[${target.name}] Skipping account ${account.accountNumber} — not in target.accounts filter`);
+      continue;
+    }
+    const txResult = transform(account.txns, account.accountNumber, target.companyId, importPending, existingIds, importFuture);
     const newCount = txResult.rows.length;
 
     logger.info(

@@ -16,6 +16,7 @@ export interface Target {
   reconcile?: boolean;
   tags?: string[];
   categoryMap?: Record<string, string>;
+  accounts?: 'all' | string[];  // filter to specific bank account numbers; default = 'all'
 }
 
 export interface Config {
@@ -66,6 +67,12 @@ const schema = {
           categoryMap: {
             type: 'object',
             additionalProperties: { type: 'string', minLength: 1 },
+          },
+          accounts: {
+            oneOf: [
+              { type: 'string', const: 'all' },
+              { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1 },
+            ],
           },
         },
       },

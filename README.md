@@ -12,7 +12,7 @@ no cloud, no third-party services.
 ## How It Works
 
 1. Scrapes your configured bank and credit card accounts using headless Chromium
-2. Filters out zero-amount transactions, future-dated transactions, and already-imported transactions
+2. Filters out zero-amount transactions, future-dated transactions (unless `IMPORT_FUTURE=true`), pending transactions (unless `IMPORT_PENDING=true`), and already-imported transactions
 3. Posts each new transaction directly to Sure via `POST /api/v1/transactions` — transactions appear immediately, no review queue
 4. Embeds a `Source ID` in every transaction's notes — on the next run this is queried back from Sure to skip already-imported transactions (no local database)
 
@@ -219,6 +219,7 @@ Contains only structure - no credentials, no API keys. Safe to commit.
 | `reconcile` | No | If `true`, posts the scraped account balance to Sure after each sync via `POST /api/v1/valuations` |
 | `tags` | No | Tag names to attach to every imported transaction. Tags must exist in Sure UI first (or set `createMissingTags: true`). |
 | `categoryMap` | No | Maps scraper `tx.type` values to Sure category names for auto-categorization. Categories must exist in Sure — they are never auto-created. |
+| `accounts` | No | `"all"` (default) or an array of bank account numbers to import (e.g. `["8538", "7697"]`). Other accounts scraped from the same bank are silently skipped. |
 
 ### `compose.yml` environment variables
 
@@ -230,6 +231,12 @@ Contains only structure - no credentials, no API keys. Safe to commit.
 | `TIMEOUT_MINUTES` | `10` | Per-bank timeout (also sets Puppeteer defaultTimeout) |
 | `DRY_RUN` | `"false"` | `"true"` = scrape only, no writes to Sure |
 | `IMPORT_PENDING` | `"false"` | `"true"` = include bank-pending transactions |
+| `IMPORT_FUTURE` | `"false"` | `"true"` = include future-dated transactions (by default these are dropped to prevent credit card scheduled charges) |
+| `SURE_API_KEY_FILE` | `/run/secrets/sure_api_key` | Path to Sure API key secret file (mounted from `secrets/`) |
+| `TELEGRAM_BOT_TOKEN_FILE` | `/run/secrets/telegram_bot_token` | Path to Telegram bot token secret file (mounted from `secrets/`) |
+| `TELEGRAM_CHAT_ID` | — | Your Telegram chat ID (not sensitive — set directly in `compose.yml`) |
+| `PUPPETEER_EXECUTABLE_PATH` | `/usr/bin/chromium` | Path to Chromium binary inside the container — do not change |
+| `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` | `"true"` | Prevents Puppeteer from downloading a second Chromium — do not change |
 | `BROWSER_DATA_DIR` | `/app/browser-data` | Per-bank browser profile path. Remove to use fresh session every run. |
 | `MERCHANTS_PATH` | `/app/logs/merchants.json` | Override path to `merchants.json`. |
 | `NOTIFY_ON_LOGIN_FAIL` | `"true"` | Telegram alert on bank login failure |

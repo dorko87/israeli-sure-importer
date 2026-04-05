@@ -23,7 +23,8 @@
       "sureAccountId": "paste-uuid-from-sure-ui",
       "reconcile": false,
       "tags": [],
-      "categoryMap": {}
+      "categoryMap": {},
+      "accounts": "all"
     }
   ]
 }
