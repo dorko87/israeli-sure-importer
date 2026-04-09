@@ -13,6 +13,8 @@ services:
       NODE_ENV: production
       NODE_OPTIONS: "--no-deprecation"
       LOG_LEVEL: info
+      # Log retention window (e.g. "7d", "14d"). Default: 7d
+      # LOG_MAX_FILES: "7d"
       # Cron schedule (Asia/Jerusalem). Remove or leave blank to run once and exit.
       SCHEDULE: "0 8 * * *"
       # Days to look back on first run (default: 30)

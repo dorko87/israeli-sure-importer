@@ -29,7 +29,7 @@ const transports: winston.transport[] = [
   new DailyRotateFile({
     filename: '/app/logs/importer-%DATE%.log',
     datePattern: 'YYYY-MM-DD',
-    maxFiles: '14d',
+    maxFiles: process.env.LOG_MAX_FILES ?? '7d',
     auditFile: '/app/logs/.audit.json',
     createSymlink: true,
     symlinkName: 'importer.log',
