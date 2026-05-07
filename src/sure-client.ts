@@ -174,6 +174,12 @@ function extractSourceId(notes: string | undefined): string | undefined {
   return match?.[1]?.trim();
 }
 
+function extractProcessedDate(notes: string | undefined): string | undefined {
+  if (!notes) return undefined;
+  const match = /^Processed date: (.+)$/m.exec(notes);
+  return match?.[1]?.trim();
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -204,7 +210,13 @@ export async function resolveAccount(idOrName: string): Promise<SureAccount> {
  * Searches only transactions containing the import marker in their notes.
  * Result is NOT cached — called once per target account per run.
  */
-export async function listImportedTransactionIds(accountId: string): Promise<Set<string>> {
+/**
+ * Returns a Map<sourceId, processedDate> for all previously-imported transactions.
+ * The date is extracted from the "Processed date:" line in notes and used for
+ * date-aware dedup: prevents false-positive dedup when a bank reuses the same
+ * identifier for different months (e.g. Mizrahi recurring salary).
+ */
+export async function listImportedTransactionIds(accountId: string): Promise<Map<string, string>> {
   interface SureTx { notes?: string }
 
   const transactions = await listPaginatedCollection<SureTx>(
@@ -213,10 +225,10 @@ export async function listImportedTransactionIds(accountId: string): Promise<Set
     { account_id: accountId, search: IMPORT_MARKER }
   );
 
-  const ids = new Set<string>();
+  const ids = new Map<string, string>();
   for (const tx of transactions) {
     const sid = extractSourceId(tx.notes);
-    if (sid) ids.add(sid);
+    if (sid) ids.set(sid, extractProcessedDate(tx.notes) ?? '');
   }
 
   logger.debug(`[sure-client] listImportedTransactionIds: found ${ids.size} existing sourceIds for account ${accountId}`);

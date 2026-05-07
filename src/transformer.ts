@@ -25,8 +25,31 @@ export interface TransformResult {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Builds the stable sourceId for a transaction. */
+/**
+ * Builds the stable sourceId for a transaction (v2).
+ * Identifier-based keys include the date to prevent false-positive dedup when a bank
+ * reuses the same identifier for recurring transactions (e.g. monthly salary).
+ */
 function buildSourceId(
+  companyId: string,
+  accountNumber: string,
+  tx: Transaction
+): string {
+  const datePart = tx.date.substring(0, 10);
+  const id = tx.identifier != null ? String(tx.identifier) : null;
+  if (id && id !== '0') {
+    return `${companyId}:${accountNumber}:${datePart}:${id}`;
+  }
+  const fallback = [datePart, tx.chargedAmount, tx.description, tx.installments?.number ?? 0].join(':');
+  return `${companyId}:${accountNumber}:${fallback}`;
+}
+
+/**
+ * Legacy sourceId format (v1 — no date in identifier-based key).
+ * Used only to match transactions already stored in Sure with the old format,
+ * preventing re-imports after the v2 format change.
+ */
+function buildSourceIdV1(
   companyId: string,
   accountNumber: string,
   tx: Transaction
@@ -35,7 +58,6 @@ function buildSourceId(
   if (id && id !== '0') {
     return `${companyId}:${accountNumber}:${id}`;
   }
-  // Fallback: plain readable string (no hashing — must be parseable from notes)
   const datePart = tx.date.substring(0, 10);
   const fallback = [datePart, tx.chargedAmount, tx.description, tx.installments?.number ?? 0].join(':');
   return `${companyId}:${accountNumber}:${fallback}`;
@@ -108,7 +130,7 @@ export function transform(
   accountNumber: string,
   companyId: string,
   importPending: boolean,
-  existingIds: Set<string>,
+  existingIds: Map<string, string>,
   importFuture: boolean = false,
 ): TransformResult {
   let zeroAmountSkipped = 0;
@@ -129,9 +151,21 @@ export function transform(
     // 3. Pending filter
     if (tx.status === 'pending' && !importPending) { pendingSkipped++; continue; }
 
-    // 4. Dedup
+    // 4. Dedup — check v2 (current) and v1 (legacy) formats.
+    // v1 is only treated as a match when the stored date equals the current transaction
+    // date, preventing false-positive dedup when a bank reuses the same identifier for
+    // recurring transactions (e.g. Mizrahi monthly salary identifier repeats every month).
+    const txDate = tx.date.substring(0, 10);
     const sourceId = buildSourceId(companyId, accountNumber, tx);
-    if (existingIds.has(sourceId)) { alreadySeenSkipped++; continue; }
+    const sourceIdV1 = buildSourceIdV1(companyId, accountNumber, tx);
+    const storedDateForV1 = existingIds.get(sourceIdV1);
+    const isDedup = existingIds.has(sourceId) ||
+      (storedDateForV1 !== undefined && storedDateForV1 === txDate);
+    if (isDedup) {
+      alreadySeenSkipped++;
+      logger.debug(`[${companyId}] Deduped: "${tx.description}" | date=${txDate} | sourceId=${sourceId}`);
+      continue;
+    }
 
     const name = findMatch(tx.description) ?? tx.description;
     const notes = buildNotes(tx, name, companyId, accountNumber, sourceId);
