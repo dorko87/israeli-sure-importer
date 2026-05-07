@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const SECRETS_BASE = '/run/secrets';
+const SECRETS_BASE = process.env.SECRETS_BASE ?? '/run/secrets';
 
 /**
  * Reads a secret from the file path stored in the given env var.

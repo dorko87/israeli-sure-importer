@@ -6,6 +6,7 @@ FROM node:22-slim AS builder
 WORKDIR /build
 
 COPY package.json package-lock.json* ./
+COPY patches/ ./patches/
 RUN npm install
 
 COPY tsconfig.json ./
@@ -46,7 +47,7 @@ COPY --from=builder --chown=node:node /build/node_modules/ ./node_modules/
 
 # Runtime directories are bind-mounted from the host; create placeholders so
 # the container starts cleanly even if the host paths are pre-created.
-RUN mkdir -p /app/logs /app/browser-data && chown -R node:node /app
+RUN mkdir -p /app/logs /app/browser-data && chown node:node /app/logs /app/browser-data
 
 USER node
 
