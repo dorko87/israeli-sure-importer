@@ -79,7 +79,7 @@ async function processTarget(
   // Fetch existing sourceIds from Sure (dedup set)
   logger.info(`[${target.name}] Fetching existing transaction IDs from Sure (dedup)...`);
   const existingIds = await listImportedTransactionIds(sureAccount.id);
-  logger.debug(`[${target.name}] Dedup: ${existingIds.size} existing sourceIds in Sure`);
+  logger.debug(`[${target.name}] Dedup: ${existingIds.size} existing sourceIds in Sure (Map<sourceId, date>)`);
 
   // Scrape — log elapsed time per bank; alert if approaching timeout
   const scrapeStart = Date.now();
@@ -185,7 +185,7 @@ async function processTarget(
           category_id: categoryId,
           tag_ids: tagIds.length ? tagIds : undefined,
         });
-        existingIds.add(tx.sourceId);
+        existingIds.set(tx.sourceId, tx.date);
         txSuccessCount++;
       } catch (txErr) {
         logger.error(`[${target.name}] Failed to create transaction "${tx.name}": ${String(txErr)}`);
