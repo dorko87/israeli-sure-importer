@@ -245,6 +245,10 @@ Contains only structure - no credentials, no API keys. Safe to commit.
 | `NOTIFY_ON_SUCCESS` | `"false"` | Telegram summary on successful sync |
 | `HISTORY_PATH` | `/app/logs/import_history.jsonl` | Override import history log path |
 | `PUBLISH` | - | **Deprecated.** Has no effect — remove from `compose.yml` if set. A warning is logged on every run if this variable is present. |
+| `CONFIG_PATH` | `/app/config.json` | Path to `config.json`. Override for local development (e.g. `CONFIG_PATH=./config.json`). |
+| `SECRETS_BASE` | `/run/secrets` | Directory where per-bank secret files are read from. Override to point at a local `secrets/` folder when running outside Docker. |
+| `LOG_DIR` | `/app/logs` | Directory for log files. Override when running locally (e.g. `LOG_DIR=./logs`). |
+| `SURE_BASE_URL` | — | Overrides `sure.baseUrl` from `config.json` at runtime. Useful for local dev without editing `config.json`. |
 
 ### `merchants.json`
 
@@ -351,7 +355,75 @@ docker exec israeli-sure-importer node dist/index.js --run-once
 
 # Dry run - scrapes and transforms, zero writes to Sure
 docker exec israeli-sure-importer node dist/index.js --run-once --dry-run
+
+# Run only specific targets (repeat --target for multiple)
+docker exec israeli-sure-importer node dist/index.js --run-once --target "Leumi Checking"
+docker exec israeli-sure-importer node dist/index.js --run-once --target "Leumi Checking" --target "Max Credit Card"
+
+# Explicitly run all targets (default when --target is omitted)
+docker exec israeli-sure-importer node dist/index.js --run-once --all
 ```
+
+`--target <name>` matches the `name` field in `config.json`. If the name is not found, a warning is logged and the run completes with zero banks processed. `--all` and omitting `--target` are equivalent.
+
+---
+
+## Local Development
+
+Run the importer directly with `ts-node` (no Docker required). All paths that are
+hardcoded to `/app/...` or `/run/secrets/...` inside the container can be overridden
+via environment variables so the process reads from local directories instead.
+
+### Prerequisites
+
+```bash
+npm install
+```
+
+### Secret files
+
+Create a local `secrets/` directory and add one file per credential (same names as
+in `config.json → credentialSecrets`):
+
+```bash
+mkdir -p secrets
+printf '%s' "your-sure-api-key" > secrets/sure_api_key
+printf '%s' "myusername"        > secrets/leumi_username
+printf '%s' "mypassword"        > secrets/leumi_password
+# ... etc.
+chmod 400 secrets/*
+```
+
+### Run with env overrides
+
+```bash
+CONFIG_PATH=./config.json \
+SECRETS_BASE=./secrets \
+SURE_API_KEY_FILE=./secrets/sure_api_key \
+LOG_DIR=./logs \
+npx ts-node src/index.ts --run-once --dry-run
+```
+
+Or export them once in your shell session:
+
+```bash
+export CONFIG_PATH=./config.json
+export SECRETS_BASE=./secrets
+export SURE_API_KEY_FILE=./secrets/sure_api_key
+export LOG_DIR=./logs
+
+# Dry run
+npx ts-node src/index.ts --run-once --dry-run
+
+# Target a single bank
+npx ts-node src/index.ts --run-once --target "Leumi Checking"
+```
+
+`LOG_DIR=./logs` writes log files to `./logs/` instead of `/app/logs`. Create the
+directory first: `mkdir -p logs`.
+
+`SURE_BASE_URL` can also be set here to override `sure.baseUrl` in `config.json`
+without editing the file (useful for pointing at a local Sure instance).
 
 ---
 

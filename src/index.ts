@@ -19,6 +19,9 @@ import { reloadMerchants } from './merchants';
 import { transform } from './transformer';
 import { appendHistory } from './history';
 
+// Route library console.warn through the importer logger
+console.warn = (...args: unknown[]) => logger.warn(args.map(String).join(' '));
+
 // --- CLI flags ---
 const args = process.argv.slice(2);
 const runOnce = args.includes('--run-once');
@@ -26,6 +29,13 @@ const dryRun = args.includes('--dry-run') || process.env.DRY_RUN === 'true';
 const importPending = process.env.IMPORT_PENDING === 'true';
 const importFuture  = process.env.IMPORT_FUTURE  === 'true';
 const scheduleExpr = process.env.SCHEDULE;
+
+const targetNames: Set<string> | null =
+  args.includes('--all') || !args.includes('--target')
+    ? null
+    : new Set(args.reduce<string[]>((acc, arg, i) =>
+        arg === '--target' && args[i + 1] ? [...acc, args[i + 1]] : acc, []
+      ));
 
 // --- Graceful shutdown state ---
 let shuttingDown = false;
@@ -284,7 +294,13 @@ async function run(): Promise<void> {
   let successCount = 0;
   let failCount = 0;
 
-  for (const target of config.targets) {
+  const targets = targetNames
+    ? config.targets.filter(t => targetNames.has(t.name))
+    : config.targets;
+  if (targetNames && targets.length === 0)
+    logger.warn(`No targets matched: ${[...targetNames].join(', ')}`);
+
+  for (const target of targets) {
     try {
       const stats = await processTarget(target, config.sure.createMissingTags ?? false);
       allStats.push(stats);

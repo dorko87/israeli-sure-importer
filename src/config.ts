@@ -80,7 +80,7 @@ const schema = {
   },
 } as const;
 
-const CONFIG_PATH = '/app/config.json';
+const CONFIG_PATH = process.env.CONFIG_PATH ?? '/app/config.json';
 
 export function loadConfig(): Config {
   let raw: unknown;
@@ -103,6 +103,10 @@ export function loadConfig(): Config {
   }
 
   const config = raw as Config;
+
+  if (process.env.SURE_BASE_URL) {
+    config.sure.baseUrl = process.env.SURE_BASE_URL;
+  }
 
   return config;
 }
