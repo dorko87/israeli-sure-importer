@@ -4,7 +4,7 @@ Automatically imports transactions from Israeli banks and credit cards into your
 self-hosted [Sure Finance](https://github.com/we-promise/sure) instance.
 
 Powered by [israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers)
-(v6.7.1) - scrapes Israeli banks via headless Chromium. Runs entirely on your homelab -
+(v6.7.4) - scrapes Israeli banks via headless Chromium. Runs entirely on your homelab -
 no cloud, no third-party services.
 
 ---
@@ -226,6 +226,7 @@ Contains only structure - no credentials, no API keys. Safe to commit.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LOG_LEVEL` | `info` | `error` / `warn` / `info` / `debug` |
+| `LOG_MAX_FILES` | `7d` | Log retention window (e.g. `"7d"`, `"14d"`) |
 | `SCHEDULE` | - | Cron expression. Remove entirely to run once and exit. |
 | `DAYS_BACK` | `30` | Days to fetch on the very first run |
 | `TIMEOUT_MINUTES` | `10` | Per-bank timeout (also sets Puppeteer defaultTimeout) |
@@ -440,7 +441,7 @@ tail -f ./logs/importer.log
 tail -100 ./logs/importer.log
 ```
 
-Rotated daily, 14 days retained. Archived files: `importer-2026-03-16.log` etc.
+Rotated daily. Retention window defaults to 7 days — configurable via `LOG_MAX_FILES` in `compose.yml` (e.g. `"14d"`). Archived files: `importer-2026-03-16.log` etc.
 Current day's log is also accessible via the `importer.log` symlink.
 
 Set `LOG_LEVEL=debug` in `compose.yml` to see browser navigation events and
