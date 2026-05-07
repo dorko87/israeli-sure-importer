@@ -9,6 +9,9 @@
 - **Faster Dockerfile chown** — `chown` now targets only newly created empty dirs instead of recursively traversing all of `/app` including `node_modules`.
 - **Library warnings routed through logger** — `console.warn` from scrapers now flows through the structured logger with rotation instead of unstructured stdout.
 
+### Contributors
+Thanks to [@noamyoyo](https://github.com/noamyoyo) for contributing all the v1.4.0 features.
+
 ---
 
 ## What's new in v1.3.0
