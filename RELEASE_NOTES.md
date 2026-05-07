@@ -1,3 +1,16 @@
+## What's new in v1.4.0
+
+### New features
+- **`--target <name>` flag** — Run only specific targets instead of all (repeatable: `--target A --target B`). `--all` or omitting the flag runs everything.
+- **Env overrides for local dev** — `CONFIG_PATH`, `SECRETS_BASE`, `LOG_DIR`, `SURE_BASE_URL` allow running `npx ts-node src/index.ts` directly without Docker.
+- **Max bank loan transactions** — Unknown Hebrew loan transaction types (`הלוואה ברגע למולטי`, `הלוואה בהטבה`) are now treated as Normal instead of throwing. Uses `patch-package` against `israeli-bank-scrapers@6.7.4`.
+
+### Improvements
+- **Faster Dockerfile chown** — `chown` now targets only newly created empty dirs instead of recursively traversing all of `/app` including `node_modules`.
+- **Library warnings routed through logger** — `console.warn` from scrapers now flows through the structured logger with rotation instead of unstructured stdout.
+
+---
+
 ## What's new in v1.3.0
 
 ### Bug fixes

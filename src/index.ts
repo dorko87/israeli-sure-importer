@@ -30,12 +30,18 @@ const importPending = process.env.IMPORT_PENDING === 'true';
 const importFuture  = process.env.IMPORT_FUTURE  === 'true';
 const scheduleExpr = process.env.SCHEDULE;
 
-const targetNames: Set<string> | null =
-  args.includes('--all') || !args.includes('--target')
-    ? null
-    : new Set(args.reduce<string[]>((acc, arg, i) =>
-        arg === '--target' && args[i + 1] ? [...acc, args[i + 1]] : acc, []
-      ));
+const targetNames: Set<string> | null = (() => {
+  if (args.includes('--all') || !args.includes('--target')) return null;
+  const names = args.reduce<string[]>((acc, arg, i) =>
+    arg === '--target' && args[i + 1] && !args[i + 1].startsWith('--')
+      ? [...acc, args[i + 1]] : acc, []);
+  if (names.length === 0) {
+    // eslint-disable-next-line no-console
+    console.error('--target requires a value. Usage: --target "Target Name"');
+    process.exit(1);
+  }
+  return new Set(names);
+})();
 
 // --- Graceful shutdown state ---
 let shuttingDown = false;
@@ -285,6 +291,7 @@ async function run(): Promise<void> {
   }
 
   initSureClient(config.sure.baseUrl, secrets.sureApiKey);
+  logger.info(`Sure API: ${config.sure.baseUrl}${process.env.SURE_BASE_URL ? ' (SURE_BASE_URL override)' : ''}`);
   clearEntityCaches();
   initNotifier(secrets.telegramBotToken);
 
