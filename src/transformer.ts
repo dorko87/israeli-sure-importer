@@ -90,13 +90,16 @@ function buildNotes(
 ): string {
   const userContent = buildUserContent(tx, resolvedName);
   const datePart = tx.date.substring(0, 10);
+  // Use the bank's real processedDate when available; otherwise fall back to tx.date.
+  // The line must be emitted always for v1 dedup backward-compat (sure-client parses it).
+  const processedDatePart = tx.processedDate?.substring(0, 10) ?? datePart;
 
   const metaLines: string[] = [
     IMPORT_MARKER,
     `Source ID: ${sourceId}`,
     `Source bank: ${companyId}`,
     `Source account: ${accountNumber}`,
-    `Processed date: ${datePart}`,
+    `Processed date: ${processedDatePart}`,
   ];
 
   if (tx.installments) {
