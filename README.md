@@ -221,6 +221,7 @@ Contains only structure - no credentials, no API keys. Safe to commit.
 | `categoryMap` | No | Maps the scraper-provided category name to a Sure category name for auto-categorization. **Max** and **Visa Cal** populate `tx.category` with strings like `"Restaurants"`, `"Gas Stations"` — map these to your Sure category names. Falls back to `tx.type` (`"normal"` / `"installments"`) when the bank doesn't provide a category. Categories must already exist in Sure — they are never auto-created. Example: `{ "Restaurants": "Dining Out", "Gas Stations": "Transportation" }` |
 | `accounts` | No | `"all"` (default) or an array of bank account numbers to import (e.g. `["8538", "7697"]`). Other accounts scraped from the same bank are silently skipped. |
 | `richDetails` | No | If `true`, fetches extra per-transaction detail from the scraper (sender/recipient/purpose for transfers). Only **Mizrahi** and **Hapoalim** use this — silent no-op for all other banks/cards. Increases scrape time because the scraper makes one extra HTTP call per transaction; consider raising `TIMEOUT_MINUTES` if your account has many transactions. Default: `false`. |
+| `bankAlias` | No | Optional display label used in the `Source bank:` metadata line in transaction notes. When set, replaces `companyId` in that line — useful when you have two accounts at the same bank and want to distinguish them in Sure's note view (e.g. `"mizrahi-personal"` and `"mizrahi-business"`). Does **not** affect dedup — the `Source ID` still uses `companyId`. |
 
 ### `compose.yml` environment variables
 
@@ -316,7 +317,7 @@ identical and all but the first would be incorrectly skipped.
 | Sure field | Content | Example |
 |------------|---------|---------|
 | **Name** | Clean merchant name (from `merchants.json` if matched, otherwise raw description). No installment info - keeps Sure's Rules engine working correctly. | `קאנטרי קריית טבעון` |
-| **Notes** | User-readable context (installment label, raw description, or bank memo) followed by a blank line and a structured metadata block containing `Imported by israeli-banks-sure-importer`, `Source ID:`, `Source bank:`, `Source account:`, `Processed date:`, and optionally `Installment:` and `Original amount:`. The metadata block is always present — it powers dedup on the next run. | `תשלום 3 מתוך 12 \| קאנטרי קריית טבעון` |
+| **Notes** | User-readable context (installment label, raw description, or bank memo) followed by a blank line and a structured metadata block containing `Imported by israeli-banks-sure-importer`, `Source ID:`, `Source bank:`, `Source account:`, `Processed date:`, and optionally `Charge date:` (credit cards), `Status: pending` (pending transactions), `Installment:`, and `Original amount:`. The metadata block is always present — it powers dedup on the next run. | `תשלום 3 מתוך 12 \| קאנטרי קריית טבעון` |
 
 ---
 
