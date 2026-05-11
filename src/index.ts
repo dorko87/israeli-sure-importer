@@ -147,7 +147,7 @@ async function processTarget(
       logger.debug(`[${target.name}] Skipping account ${account.accountNumber} — not in target.accounts filter`);
       continue;
     }
-    const txResult = transform(account.txns, account.accountNumber, target.companyId, importPending, existingIds, importFuture);
+    const txResult = transform(account.txns, account.accountNumber, target.companyId, importPending, existingIds, importFuture, target.bankAlias);
     const newCount = txResult.rows.length;
 
     logger.info(

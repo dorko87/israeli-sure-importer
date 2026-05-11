@@ -90,7 +90,8 @@ function buildNotes(
   resolvedName: string,
   companyId: string,
   accountNumber: string,
-  sourceId: string
+  sourceId: string,
+  bankAlias?: string,   // optional display label; overrides companyId in "Source bank:" only
 ): string {
   const userContent = buildUserContent(tx, resolvedName, companyId);
   const datePart = tx.date.substring(0, 10);
@@ -98,7 +99,9 @@ function buildNotes(
   const metaLines: string[] = [
     IMPORT_MARKER,
     `Source ID: ${sourceId}`,
-    `Source bank: ${companyId}`,
+    // bankAlias overrides the display label in notes but sourceId always uses companyId.
+    // This means adding/removing bankAlias never invalidates existing dedup entries.
+    `Source bank: ${bankAlias ?? companyId}`,
     `Source account: ${accountNumber}`,
     // "Processed date:" is anchored to tx.date (the purchase/transaction date), NOT
     // tx.processedDate, because sure-client.ts reads this line for v1 dedup and compares
@@ -154,6 +157,7 @@ export function transform(
   importPending: boolean,
   existingIds: Map<string, string>,
   importFuture: boolean = false,
+  bankAlias?: string,
 ): TransformResult {
   let zeroAmountSkipped = 0;
   let futureSkipped = 0;
@@ -190,7 +194,7 @@ export function transform(
     }
 
     const name = findMatch(tx.description) ?? tx.description;
-    const notes = buildNotes(tx, name, companyId, accountNumber, sourceId);
+    const notes = buildNotes(tx, name, companyId, accountNumber, sourceId, bankAlias);
     // chargedAmount is always in ILS (the account's settlement currency).
     // originalCurrency is the foreign purchase currency — already captured in
     // the metadata block as "Original amount: X USD". Never use it as the
