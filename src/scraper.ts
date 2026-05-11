@@ -12,6 +12,7 @@ export interface ScrapeTargetOptions {
   companyId: string;
   credentials: Record<string, string>;
   name: string;
+  richDetails?: boolean;
 }
 
 /** Builds the start date (today minus DAYS_BACK). */
@@ -62,9 +63,10 @@ export async function scrapeTarget(options: ScrapeTargetOptions): Promise<Scrape
     showBrowser: false,
     verbose: process.env.LOG_LEVEL === 'debug',
     defaultTimeout: timeoutMs,
+    additionalTransactionInformation: options.richDetails === true,
   };
 
-  logger.debug(`[${options.name}] Launching scraper | startDate=${startDate.toISOString().substring(0, 10)} | timeout=${TIMEOUT_MINUTES}m`);
+  logger.debug(`[${options.name}] Launching scraper | startDate=${startDate.toISOString().substring(0, 10)} | timeout=${TIMEOUT_MINUTES}m | richDetails=${options.richDetails === true}`);
 
   const scraper = createScraper(scraperOptions);
 

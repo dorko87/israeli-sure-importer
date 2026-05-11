@@ -103,6 +103,7 @@ async function processTarget(
     companyId: target.companyId,
     credentials,
     name: target.name,
+    richDetails: target.richDetails,
   });
   const elapsedMs = Date.now() - scrapeStart;
   const elapsedSecs = Math.round(elapsedMs / 1000);
