@@ -191,6 +191,7 @@ async function processTarget(
         categoryId = await resolveCategory(target.categoryMap[tx.txCategory]);
       }
 
+      logger.debug(`[${target.name}] Importing: name=${tx.name}\nnotes=\n${tx.notes}`);
       try {
         await createTransaction({
           account_id: sureAccount.id,
