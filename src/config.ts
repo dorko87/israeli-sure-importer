@@ -18,6 +18,7 @@ export interface Target {
   categoryMap?: Record<string, string>;
   accounts?: 'all' | string[];  // filter to specific bank account numbers; default = 'all'
   richDetails?: boolean;  // opt-in: pass additionalTransactionInformation to scraper (only Mizrahi/Hapoalim use it)
+  bankAlias?: string;     // optional display label for "Source bank:" in notes; does not affect sourceId or dedup
 }
 
 export interface Config {
@@ -76,6 +77,7 @@ const schema = {
             ],
           },
           richDetails: { type: 'boolean' },
+          bankAlias: { type: 'string', minLength: 1 },
         },
       },
     },
