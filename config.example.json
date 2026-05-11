@@ -29,7 +29,8 @@
       "tags": [],
       "categoryMap": {},
       "accounts": "all",
-      "richDetails": true
+      "richDetails": true,
+      "bankAlias": "mizrahi-personal"
     },
     {
       "name": "Max Card",
