@@ -218,8 +218,9 @@ Contains only structure - no credentials, no API keys. Safe to commit.
 | `sureAccountName` | One of | Exact Sure account display name — resolved to UUID at runtime |
 | `reconcile` | No | If `true`, posts the scraped account balance to Sure after each sync via `POST /api/v1/valuations` |
 | `tags` | No | Tag names to attach to every imported transaction. Tags must exist in Sure UI first (or set `createMissingTags: true`). |
-| `categoryMap` | No | Maps scraper `tx.type` values to Sure category names for auto-categorization. Categories must exist in Sure — they are never auto-created. |
+| `categoryMap` | No | Maps the scraper-provided category name to a Sure category name for auto-categorization. **Max** and **Visa Cal** populate `tx.category` with strings like `"Restaurants"`, `"Gas Stations"` — map these to your Sure category names. Falls back to `tx.type` (`"normal"` / `"installments"`) when the bank doesn't provide a category. Categories must already exist in Sure — they are never auto-created. Example: `{ "Restaurants": "Dining Out", "Gas Stations": "Transportation" }` |
 | `accounts` | No | `"all"` (default) or an array of bank account numbers to import (e.g. `["8538", "7697"]`). Other accounts scraped from the same bank are silently skipped. |
+| `richDetails` | No | If `true`, fetches extra per-transaction detail from the scraper (sender/recipient/purpose for transfers). Only **Mizrahi** and **Hapoalim** use this — silent no-op for all other banks/cards. Increases scrape time because the scraper makes one extra HTTP call per transaction; consider raising `TIMEOUT_MINUTES` if your account has many transactions. Default: `false`. |
 
 ### `compose.yml` environment variables
 
