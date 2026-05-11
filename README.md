@@ -317,7 +317,7 @@ identical and all but the first would be incorrectly skipped.
 | Sure field | Content | Example |
 |------------|---------|---------|
 | **Name** | Clean merchant name (from `merchants.json` if matched, otherwise raw description). No installment info - keeps Sure's Rules engine working correctly. | `קאנטרי קריית טבעון` |
-| **Notes** | User-readable context (installment label, raw description, or bank memo) followed by a blank line and a structured metadata block containing `Imported by israeli-banks-sure-importer`, `Source ID:`, `Source bank:`, `Source account:`, `Processed date:`, and optionally `Charge date:` (credit cards), `Status: pending` (pending transactions), `Installment:`, and `Original amount:`. The metadata block is always present — it powers dedup on the next run. | `תשלום 3 מתוך 12 \| קאנטרי קריית טבעון` |
+| **Notes** | User-readable context (installment label, raw description, or bank memo) followed by a blank line and a structured metadata block containing `Imported by israeli-banks-sure-importer`, `Source ID:`, `Source bank:`, `Source account:`, `Processed date:`, and optionally `Charge date:` (credit cards), `Status: pending` (only when `IMPORT_PENDING=true`), `Installment:`, and `Original amount:`. The metadata block is always present — it powers dedup on the next run. | `תשלום 3 מתוך 12 \| קאנטרי קריית טבעון` |
 
 ---
 
