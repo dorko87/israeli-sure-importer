@@ -74,7 +74,11 @@ function buildUserContent(tx: Transaction, resolvedName: string, companyId: stri
   // sender/purpose info fetched via additionalTransactionInformation and must be preserved
   // even when installments exist.
   const suppressMemo = companyId === 'max' && !!tx.installments;
-  const memo = !suppressMemo && tx.memo?.trim() ? tx.memo.trim() : null;
+  // Replace ", " separators with newlines so comma-separated key:value pairs from
+  // richDetails (Mizrahi: "חשבון: ..., מהות העברה: ..., מוטב: ...") and Paybox/Bit
+  // memos ("למי: ..., עבור: ...") each appear on their own line in Sure's notes view.
+  const rawMemo = !suppressMemo ? tx.memo?.trim() : undefined;
+  const memo = rawMemo ? rawMemo.replace(/, /g, '\n') : null;
 
   if (label && hasOverride) return `${label} | ${tx.description}`;
   if (label)               return label;
