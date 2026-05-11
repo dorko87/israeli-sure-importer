@@ -18,6 +18,20 @@
       "accounts": "all"
     },
     {
+      "name": "Mizrahi Bank",
+      "companyId": "mizrahi",
+      "credentialSecrets": {
+        "username": "mizrahi_username",
+        "password": "mizrahi_password"
+      },
+      "sureAccountId": "paste-uuid-from-sure-ui",
+      "reconcile": false,
+      "tags": [],
+      "categoryMap": {},
+      "accounts": "all",
+      "richDetails": true
+    },
+    {
       "name": "Max Card",
       "companyId": "max",
       "credentialSecrets": {
@@ -27,7 +41,11 @@
       "sureAccountId": "paste-uuid-from-sure-ui",
       "reconcile": false,
       "tags": ["Credit Card Import"],
-      "categoryMap": {},
+      "categoryMap": {
+        "Restaurants": "Dining Out",
+        "Gas Stations": "Transportation",
+        "Supermarket": "Groceries"
+      },
       "accounts": ["5674", "9834"]
     }
   ]
