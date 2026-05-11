@@ -16,6 +16,7 @@ export interface Transaction {
     number: number;
     total: number;
   };
+  category?: string;  // bank-provided category (Max, Visa Cal); undefined for everyone else
 }
 
 export interface ScraperAccount {
