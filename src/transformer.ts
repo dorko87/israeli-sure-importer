@@ -64,13 +64,17 @@ function buildSourceIdV1(
 }
 
 /** Builds the userContent portion (top lines before the metadata block). */
-function buildUserContent(tx: Transaction, resolvedName: string): string {
+function buildUserContent(tx: Transaction, resolvedName: string, companyId: string): string {
   const hasOverride = resolvedName !== tx.description;
   const label = tx.installments
     ? `תשלום ${tx.installments.number} מתוך ${tx.installments.total}`
     : null;
-  // Skip memo when installments are present — Max sets memo to the installment label
-  const memo = !tx.installments && tx.memo?.trim() ? tx.memo.trim() : null;
+  // Max sets tx.memo to a redundant installment label — suppress it for Max only.
+  // For other scrapers (e.g. Mizrahi with richDetails=true), memo may carry enriched
+  // sender/purpose info fetched via additionalTransactionInformation and must be preserved
+  // even when installments exist.
+  const suppressMemo = companyId === 'max' && !!tx.installments;
+  const memo = !suppressMemo && tx.memo?.trim() ? tx.memo.trim() : null;
 
   if (label && hasOverride) return `${label} | ${tx.description}`;
   if (label)               return label;
@@ -88,19 +92,28 @@ function buildNotes(
   accountNumber: string,
   sourceId: string
 ): string {
-  const userContent = buildUserContent(tx, resolvedName);
+  const userContent = buildUserContent(tx, resolvedName, companyId);
   const datePart = tx.date.substring(0, 10);
-  // Use the bank's real processedDate when available; otherwise fall back to tx.date.
-  // The line must be emitted always for v1 dedup backward-compat (sure-client parses it).
-  const processedDatePart = tx.processedDate?.substring(0, 10) ?? datePart;
 
   const metaLines: string[] = [
     IMPORT_MARKER,
     `Source ID: ${sourceId}`,
     `Source bank: ${companyId}`,
     `Source account: ${accountNumber}`,
-    `Processed date: ${processedDatePart}`,
+    // "Processed date:" is anchored to tx.date (the purchase/transaction date), NOT
+    // tx.processedDate, because sure-client.ts reads this line for v1 dedup and compares
+    // the stored value against tx.date. Using tx.processedDate here would break dedup for
+    // Max/Visa Cal transactions where purchase date ≠ charge date.
+    `Processed date: ${datePart}`,
   ];
+
+  // "Charge date" is the bank's actual settlement date for credit-card transactions
+  // (Max, Visa Cal). tx.date = purchase date; tx.processedDate = when the card charges.
+  // Only emitted when it differs from the purchase date — irrelevant for bank accounts.
+  const chargeDatePart = tx.processedDate?.substring(0, 10);
+  if (chargeDatePart && chargeDatePart !== datePart) {
+    metaLines.push(`Charge date: ${chargeDatePart}`);
+  }
 
   if (tx.installments) {
     metaLines.push(`Installment: ${tx.installments.number}/${tx.installments.total}`);

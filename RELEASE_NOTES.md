@@ -5,7 +5,8 @@
 - **Auto-categorization for Max and Visa Cal** — `categoryMap` in config now matches the bank-provided category (`tx.category`) instead of the useless `tx.type` ("normal"/"installments"). Example: `"categoryMap": { "Restaurants": "Dining Out", "Gas Stations": "Transportation" }` now actually does something for Max. Backward compatible — falls back to `tx.type` when the bank doesn't provide a category.
 
 ### Bug fixes
-- **`Processed date:` in notes now reflects the real bank `processedDate`** — Previously we emitted the transaction date here, which for credit cards (Max, Visa Cal) is the purchase date — not the date the card actually charges. Now correctly shows the payment/processing date. Falls back to transaction date when the scraper doesn't populate `processedDate`. Existing imported transactions are unaffected; dedup backward-compat is preserved (the line is still emitted on every transaction).
+- **`Charge date:` in notes shows the real card settlement date** — For credit cards (Max, Visa Cal), `tx.date` is the purchase date and `tx.processedDate` is the actual charge/settlement date (often a month later). A new `Charge date:` metadata line now appears in notes when the two dates differ, showing when the card actually charges. The existing `Processed date:` line is preserved as the dedup anchor (still `tx.date`) so existing imported transactions are unaffected.
+- **Enriched memo preserved for Mizrahi installment-type transactions** — Previously, `tx.memo` was suppressed for any transaction with installments, regardless of bank. This was needed because Max populates memo with a redundant installment label — but it also silently dropped the sender/purpose info fetched by `richDetails: true` on Mizrahi. The suppression now applies only to Max.
 
 ---
 
