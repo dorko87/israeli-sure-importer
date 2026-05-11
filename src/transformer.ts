@@ -12,7 +12,7 @@ export interface ReadyTransaction {
   amount: number;         // chargedAmount (negative = expense)
   currency: string;       // "ILS" or original currency
   sourceId: string;       // dedup key embedded in notes
-  txCategory?: string;    // raw scraper category — resolved to UUID in index.ts
+  txCategory?: string;    // bank-provided category (Max/Visa Cal) — falls back to tx.type; resolved to UUID in index.ts via categoryMap
 }
 
 export interface TransformResult {
@@ -182,7 +182,7 @@ export function transform(
       amount: tx.chargedAmount,
       currency,
       sourceId,
-      txCategory: tx.type,
+      txCategory: tx.category ?? tx.type,
     });
   }
 
