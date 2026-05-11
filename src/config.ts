@@ -17,6 +17,7 @@ export interface Target {
   tags?: string[];
   categoryMap?: Record<string, string>;
   accounts?: 'all' | string[];  // filter to specific bank account numbers; default = 'all'
+  richDetails?: boolean;  // opt-in: pass additionalTransactionInformation to scraper (only Mizrahi/Hapoalim use it)
 }
 
 export interface Config {
@@ -74,6 +75,7 @@ const schema = {
               { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1 },
             ],
           },
+          richDetails: { type: 'boolean' },
         },
       },
     },
