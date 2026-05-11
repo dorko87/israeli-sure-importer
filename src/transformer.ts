@@ -115,6 +115,12 @@ function buildNotes(
     metaLines.push(`Charge date: ${chargeDatePart}`);
   }
 
+  // Emitted only for pending transactions — i.e. when IMPORT_PENDING=true is set and the
+  // bank marks the transaction as not yet settled. Lets users spot pending entries in Sure UI.
+  if (tx.status === 'pending') {
+    metaLines.push('Status: pending');
+  }
+
   if (tx.installments) {
     metaLines.push(`Installment: ${tx.installments.number}/${tx.installments.total}`);
   }
