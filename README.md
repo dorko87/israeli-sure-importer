@@ -194,7 +194,9 @@ Contains only structure - no credentials, no API keys. Safe to commit.
       // Optional fields:
       "reconcile": false,        // post account balance to Sure after each sync
       "tags": ["Bank Import"],   // tag names to attach to every imported transaction
-      "categoryMap": {}          // map scraper tx.type values → Sure category names
+      "categoryMap": {},         // map tx.category (Max/Visa Cal) or tx.type fallback → Sure category names
+      // "richDetails": true,    // fetch sender/recipient/purpose detail (Mizrahi/Hapoalim only)
+      // "bankAlias": "..."      // display label for "Source bank:" in notes (no effect on dedup)
     }
   ]
 }
@@ -304,7 +306,7 @@ silently skipped.
 
 The Source ID is a plain readable string built from:
 
-- **Primary** (when the bank provides a transaction ID): `companyId:accountNumber:transactionId`
+- **Primary** (when the bank provides a transaction ID): `companyId:accountNumber:date:transactionId`
 - **Fallback** (when no transaction ID is available): `companyId:accountNumber:date:amount:description:installmentNumber`
 
 The installment number is deliberately included in the fallback key. Israeli banks
