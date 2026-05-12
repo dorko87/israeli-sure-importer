@@ -74,11 +74,17 @@ function buildUserContent(tx: Transaction, resolvedName: string, companyId: stri
   // sender/purpose info fetched via additionalTransactionInformation and must be preserved
   // even when installments exist.
   const suppressMemo = companyId === 'max' && !!tx.installments;
-  // Replace ", " separators with newlines so comma-separated key:value pairs from
-  // richDetails (Mizrahi: "חשבון: ..., מהות העברה: ..., מוטב: ...") and Paybox/Bit
-  // memos ("למי: ..., עבור: ...") each appear on their own line in Sure's notes view.
+  // Split comma-separated key:value pairs onto separate lines so richDetails memos
+  // (Mizrahi: "חשבון: ..., מהות העברה: ..., שם מוטב: ...") and Paybox/Bit memos
+  // ("למי: ..., עבור: ...") each appear on their own line in Sure's notes view.
+  // Lookahead (?=[֐-׿\w].*?:) ensures we only split where the text after
+  // ", " starts a new KEY: segment — prevents splitting on commas inside values
+  // (e.g. "שם מוטב: כהן, דוד" is left intact). Trailing normalisation collapses any
+  // pre-existing newlines in the memo to a single \n to avoid extra blank lines.
   const rawMemo = !suppressMemo ? tx.memo?.trim() : undefined;
-  const memo = rawMemo ? rawMemo.replace(/, /g, '\n') : null;
+  const memo = rawMemo
+    ? rawMemo.replace(/, (?=[֐-׿\w].*?:)/g, '\n').replace(/\n{2,}/g, '\n')
+    : null;
 
   if (label && hasOverride) return `${label} | ${tx.description}`;
   if (label)               return label;
